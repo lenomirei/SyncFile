@@ -1,42 +1,10 @@
-#include <stdlib.h> 
-#include <stdio.h> 
-#include <errno.h> 
-#include <string.h> 
-#include <netdb.h> 
-#include <sys/types.h> 
-#include <netinet/in.h> 
-#include <sys/socket.h> 
-#include <arpa/inet.h> //inet_ntoa()函数的头文件
-#include <unistd.h>
-#include <iostream>
-#include <string>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <vector>
-#include <signal.h>
-#include <pthread.h>
-#include <poll.h>
+#include "head.h"
+#include "Compress.h"
+#include "code.h"
+#include "FileTransport.h"
 
 
-
-#include "cJSON.h"
-
-
-
-
-
-using namespace std;
-
-
-
-#define BUFFSIZE 512
-#define JSONSIZE 2048
-#define DEFAULTPORT 8001
-#define FILELISTSIZE 1024
-#define SIGSIZE 17 
-#define USERLIMIT 5
-
+vector<int> lock;
 
 
 struct netneed
@@ -44,122 +12,11 @@ struct netneed
   int sockfd;
   struct sockaddr_in server_addr;
 };
-int FileTransport(const char * filepath,int sockConn)
-{
-
-  printf("tranporting file%s\n",filepath);
-
-  int filefd=open(filepath,O_RDONLY);
-  if(filefd<0)
-  {
-    printf("file open error!\n");
-    return -1;
-  }
-  char sendBuf[JSONSIZE]={'\0'};
-  char jsonbuf[JSONSIZE]={'\0'};
-  while(1)
-  {
-    char *sendjson;
-    cJSON *transgram=cJSON_CreateObject();
-
-    int len = read(filefd,sendBuf,BUFFSIZE);
-
-    cJSON_AddItemToObject(transgram,"length",cJSON_CreateNumber(len));
-    cJSON_AddItemToObject(transgram,"datapack",cJSON_CreateString(sendBuf));
-    sendjson=cJSON_Print(transgram);
-
-    //printf("the length of sendjson is %d\n",strlen(sendjson)+1);
-    //printf("WTF the json is %s \n",sendjson);
-    strcpy(jsonbuf,sendjson);
-
-
-    int temp=send(sockConn,jsonbuf,JSONSIZE,0);
-
-
-    recv(sockConn,sendBuf,JSONSIZE,0);
-
-
-    memset(sendBuf,'\0',JSONSIZE);
-    if(len < 1)
-    {
-      break;
-    }
-  }
-  return 0;
-}
-int ReceiveFile(char *filepath,int clientfd)
-{
- 
-  printf("downloading file %s......\n",filepath);
-
-  
-
-  char recvBuf[JSONSIZE]={'\0'};
-  int filefd;
-  long long totallength = 0;
-  filefd = open(filepath,O_RDWR|O_CREAT,0777);
-  while(1)
-  {
-
-    cJSON *transgram;
-
-    int test=recv(clientfd,recvBuf,JSONSIZE,0);
-
-
-    send(clientfd,"acknowledge",JSONSIZE,0);
 
 
 
-    transgram=cJSON_Parse(recvBuf);
-    int len=cJSON_GetObjectItem(transgram,"length")->valueint;
-
-    if(len==0)
-    {
-      break;
-    }
-    write(filefd ,cJSON_GetObjectItem(transgram,"datapack")->valuestring ,len);
-    memset(recvBuf,'\0',JSONSIZE);
-    totallength+=len;
-  }
-  int num=lseek(filefd,0,SEEK_END);
- ftruncate(filefd,totallength);
-}
 
 
-void SendFileList(int sockConn,struct FileList& fl)
-{
-  char *data=NULL;
-  char sendfilelistjson[FILELISTSIZE]={'\0'};
-
-  cJSON *filepath=cJSON_CreateArray();
-  cJSON *filesize=cJSON_CreateArray();
-  for(int i=0;i<fl.size;++i)
-  {
-    cJSON_AddItemToArray(filepath,cJSON_CreateString(fl.FilePath[i].c_str()));
-  }
-  data=cJSON_Print(filepath);
-
-  strcpy(sendfilelistjson,data);
-
-  int tem=send(sockConn,sendfilelistjson,FILELISTSIZE,0);
-
-
-
-  recv(sockConn,sendfilelistjson,FILELISTSIZE,0);//ackowledge receive
-
-  memset(sendfilelistjson,'\0',FILELISTSIZE);
-
-  char *size;  
-  for(int i=0;i<fl.size;++i)
-  {
-    cJSON_AddItemToArray(filesize,cJSON_CreateNumber(fl.FileSize[i]));
-  }
-  size=cJSON_Print(filesize);
-
-  strcpy(sendfilelistjson,size);
-
-  send(sockConn,sendfilelistjson,FILELISTSIZE,0);
-}
 
 
 struct FileList
@@ -170,11 +27,32 @@ struct FileList
     FilePath.resize(10);
     FileSize.resize(10);
   }
-  void Add(const char *filepath,long long filesize)
+  int Add(const char *filepath,long long filesize)
   {
+    printf("the filepath is %s\n",filepath);
+
+    for(int i=0;i<size;++i)
+    {
+      printf("the FileList is %s\n",FilePath[i].c_str());
+      if(strcmp(FilePath[i].c_str(),filepath)==0)
+      {
+        while(lock[i]==1)
+        {
+          sleep(2);
+          printf("someon is using this file ,I must wait for unlock%d\n",i);
+        }
+        lock[i]=1;
+
+        printf("I get the lock%d\n",i);
+
+        return i;
+      }
+    }
     FilePath[size]=filepath;
     FileSize[size]=filesize;
+    lock[size]=1;
     size++;
+    return (size-1);
   }
   void Delete(const char *filepath)
   {
@@ -225,6 +103,44 @@ struct FileList
     size_t size;
 };
 
+void SendFileList(int sockConn,struct FileList& fl)
+{
+  char *data=NULL;
+  char sendfilelistjson[FILELISTSIZE]={'\0'};
+
+  cJSON *filepath=cJSON_CreateArray();
+  cJSON *filesize=cJSON_CreateArray();
+  for(int i=0;i<fl.size;++i)
+  {
+    cJSON_AddItemToArray(filepath,cJSON_CreateString(fl.FilePath[i].c_str()));
+  }
+  data=cJSON_Print(filepath);
+
+  strcpy(sendfilelistjson,data);
+
+  int tem=send(sockConn,sendfilelistjson,FILELISTSIZE,0);
+
+
+
+  recv(sockConn,sendfilelistjson,FILELISTSIZE,0);//ackowledge receive
+
+  memset(sendfilelistjson,'\0',FILELISTSIZE);
+
+  char *size;  
+  for(int i=0;i<fl.size;++i)
+  {
+    cJSON_AddItemToArray(filesize,cJSON_CreateNumber(fl.FileSize[i]));
+  }
+  size=cJSON_Print(filesize);
+
+  strcpy(sendfilelistjson,size);
+
+  send(sockConn,sendfilelistjson,FILELISTSIZE,0);
+}
+
+
+
+
 
 int BindSocket(const char *address,int port,struct sockaddr_in& server_addr)
 {
@@ -240,7 +156,7 @@ int BindSocket(const char *address,int port,struct sockaddr_in& server_addr)
   }
   if(bind(sockfd,(struct sockaddr *)(&server_addr),sizeof(struct sockaddr)) == -1)
   {
-    printf("bind error ");
+    printf("bind error %d:%s\n ",errno,strerror(errno));
     return -1;
   }
   if(listen(sockfd,5) == -1)
@@ -280,6 +196,7 @@ void CloseSocket(int sockfd)
 
 
 
+FileList *Serverfl=new FileList;
 
 void* mainstream(void *net)
 {
@@ -291,14 +208,16 @@ void* mainstream(void *net)
 
 
 
-  FileList *Serverfl=new FileList;
   //this is a test
-  int filefd=open("./SyncFloderServer/test2.txt",O_RDONLY);
-  Serverfl->Add("./SyncFloderServer/test2.txt",0);
-  filefd=open("./SyncFloderServer/test6.txt",O_RDONLY);
-  Serverfl->Add("./SyncFloderServer/test6.txt",0);
-  filefd=open("./SyncFloderServer/test.pdf",O_RDONLY);
-  Serverfl->Add("./SyncFloderServer/test.pdf",0);
+  //int filefd=open("./SyncFloderServer/test2.txt",O_RDONLY);
+  //Serverfl->Add("./SyncFloderServer/test2.txt",0);
+ // filefd=open("./SyncFloderServer/test.pdf",O_RDONLY);
+ // Serverfl->Add("./SyncFloderServer/test.pdf",0);
+  //filefd=open("./SyncFloderServer/test6.txt",O_RDONLY);
+  //Serverfl->Add("./SyncFloderServer/test6.txt",0);
+  //filefd=open("./SyncFloderServer/test7.txt",O_RDONLY);
+  //Serverfl->Add("./SyncFloderServer/test7.txt",0);
+  
   char signals[SIGSIZE]={'\0'};  
   //test is over
   
@@ -335,45 +254,79 @@ void* mainstream(void *net)
       //requesr for downloadfile
       for(int i=0;i<Serverfl->size;++i)
       {
-        FileTransport(Serverfl->FilePath[i].c_str(),sockConn);
+        if(strstr(Serverfl->FilePath[i].c_str(),".txt")==NULL)
+        {
+          BinaryFileEncode(Serverfl->FilePath[i].c_str(),sockConn);
+#ifdef _DEBUG_
+          clock_t start=clock();
+#endif
+          UploadFile("encodedfile",sockConn);
+#ifdef _DEBUG_
+          clock_t end=clock();
+          cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
+#endif
+        }
+        else
+        {
+
+          CompressFile(Serverfl->FilePath[i].c_str());
+#ifdef _DEBUG_
+          clock_t start=clock();
+#endif
+          UploadFile("compressedfile.gz",sockConn);
+#ifdef _DEBUG_
+          clock_t end=clock();
+          cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
+#endif
+
+        }
 
        // sleep(10) ;
       }
 
 
     }
-    else if(sig==3)
+    else if(sig==3)//client add
     {
       char fileinforecv[BUFFSIZE]={'\0'};
       
       recv(sockConn,fileinforecv,BUFFSIZE,0);
-
+#ifdef _DEBUG_
       printf("the filepath is %s\n",fileinforecv);
-
+#endif
 
       cJSON *fileinfo=cJSON_Parse(fileinforecv);
       char *filepath=cJSON_GetObjectItem(fileinfo,"filepath")->valuestring;
       int filesize=cJSON_GetObjectItem(fileinfo,"filesize")->valueint;
-      Serverfl->Add(filepath,filesize);
+      int index=Serverfl->Add(filepath,filesize);
 
+      send(sockConn,"you can send file,i am ready",JSONSIZE,0);
+      DownloadFile(filepath,sockConn);
+      
+      //unlock
+      lock[index]=0;
+#ifdef _DEBUG_
 
-      ReceiveFile(filepath,sockConn);
-
+      printf("unlock!%d\n",index);
+#endif
 
 
     }
-    else if(sig == 4)
+    else if(sig == 4)//client delete
     {
       char filepath[JSONSIZE]={'\0'};
       recv(sockConn,filepath,JSONSIZE,0);
-
+#ifdef _DEBUG_
       printf("the filepath is %s\n",filepath);
 
 
       printf("before delete %d\n",Serverfl->size);
+#endif
+
       Serverfl->Delete(filepath);
+#ifdef _DEBUG_
       printf("after delete %d\n",Serverfl->size);
-      
+#endif
 
       printf("__filelist delete__\n");
 
@@ -384,6 +337,7 @@ void* mainstream(void *net)
     }
     else if(sig==5)
     {
+
       ShutDownConnect(sockConn);
       pthread_exit((void*)1);
     }
@@ -397,10 +351,14 @@ void* mainstream(void *net)
 int main()
 {
 
+  //init lock
+  lock.resize(10);
+
+
   //try to connect client
   struct sockaddr_in server_addr;
   int sockfd;
-  sockfd=BindSocket("192.168.84.128",DEFAULTPORT,server_addr);
+  sockfd=BindSocket("192.168.84.132",DEFAULTPORT,server_addr);
   struct netneed net;
   net.sockfd=sockfd;
   net.server_addr=server_addr;

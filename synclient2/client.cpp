@@ -15,7 +15,14 @@
 #include <signal.h>
 #include <string>
 #include <vector>
+#include <zlib.h>
 #include "cJSON.h"
+extern "C"
+{
+#include <b64/cencode.h>
+#include <b64/cdecode.h>
+}
+
 
 
 using namespace std;
@@ -24,12 +31,110 @@ using namespace std;
 #define BUFFSIZE 512
 #define JSONSIZE 2048
 #define SIGSIZE 17
-
+#define SIZE 100
 #define UPDATERATE 3
+
+
+void UnCompressFile(const char *filepath)
+{
+  gzFile temp;
+  int filefd;
+  char readbuf[BUFFSIZE]={'\0'};
+  temp=gzopen("compressedfile.gz","rb9");
+  filefd=open(filepath,O_WRONLY | O_CREAT);
+  while(1)
+  {
+    int len=gzread(temp,readbuf,BUFFSIZE);
+    if(len<1)
+    {
+      break;
+    }
+    write(filefd,readbuf,len);
+    memset(readbuf,'\0',BUFFSIZE);
+  }
+  gzclose(temp);
+}
 
 
 //char fileend[BUFFSIZE]={'\0'};
 
+void encode(FILE* inputFile, FILE* outputFile)
+{
+	/* set up a destination buffer large enough to hold the encoded data */
+	int size = SIZE;
+	char* input = (char*)malloc(size);
+	char* encoded = (char*)malloc(2*size); /* ~4/3 x input */
+	/* we need an encoder and decoder state */
+	base64_encodestate es;
+	/* store the number of bytes encoded by a single call */
+	int cnt = 0;
+	
+	/*---------- START ENCODING ----------*/
+	/* initialise the encoder state */
+	base64_init_encodestate(&es);
+	/* gather data from the input and send it to the output */
+	while (1)
+	{
+		cnt = fread(input, sizeof(char), size, inputFile);
+		if (cnt == 0) break;
+		cnt = base64_encode_block(input, cnt, encoded, &es);
+		/* output the encoded bytes to the output file */
+		fwrite(encoded, sizeof(char), cnt, outputFile);
+	}
+	/* since we have reached the end of the input file, we know that 
+	   there is no more input data; finalise the encoding */
+	cnt = base64_encode_blockend(encoded, &es);
+	/* write the last bytes to the output file */
+	fwrite(encoded, sizeof(char), cnt, outputFile);
+	/*---------- STOP ENCODING  ----------*/
+	
+	free(encoded);
+	free(input);
+}
+
+void decode(FILE* inputFile, FILE* outputFile)
+{
+	/* set up a destination buffer large enough to hold the decoded data */
+	int size = SIZE;
+	char* encoded = (char*)malloc(size);
+	char* decoded = (char*)malloc(1*size); /* ~3/4 x encoded */
+	/* we need an encoder and decoder state */
+	base64_decodestate ds;
+	/* store the number of bytes encoded by a single call */
+	int cnt = 0;
+	
+	/*---------- START DECODING ----------*/
+	/* initialise the encoder state */
+	base64_init_decodestate(&ds);
+	/* gather data from the input and send it to the output */
+	while (1)
+	{
+		cnt = fread(encoded, sizeof(char), size, inputFile);
+		if (cnt == 0) break;
+		cnt = base64_decode_block(encoded, cnt, decoded, &ds);
+		/* output the encoded bytes to the output file */
+		fwrite(decoded, sizeof(char), cnt, outputFile);
+	}
+	/*---------- START DECODING  ----------*/
+	
+	free(encoded);
+	free(decoded);
+}
+
+
+void BinaryFile(const char *filepath)
+{
+	FILE* encodedFile;
+	FILE* decodedFile;
+	encodedFile = fopen("encodedfile", "r");
+	decodedFile = fopen(filepath, "w");
+	
+	decode(encodedFile, decodedFile);
+	
+	fclose(encodedFile);
+	fclose(decodedFile);
+
+}
 
 
 void DownloadFile(const char *filepath,int clientfd)
@@ -284,8 +389,16 @@ public:
       {
 
 
-
-          DownloadFile(Serverfl.FilePath[i].c_str(),sockConn);
+          if(strstr(Serverfl.FilePath[i].c_str(),".txt")==NULL)
+          {
+            DownloadFile("encodedfile",sockConn);
+            BinaryFile(Serverfl.FilePath[i].c_str());
+          }
+          else
+          {
+            DownloadFile("compressedfile.gz",sockConn);
+            UnCompressFile(Serverfl.FilePath[i].c_str());
+          }
 
 
           printf("download success!next one\n");
@@ -325,13 +438,22 @@ public:
     send(sockConn,fileinfosend,BUFFSIZE,0);
 
 
+    printf("I should zuse here\n");
+    recv(sockConn,NULL,JSONSIZE,0);
+    printf("I am right!\n");
+
+
     UpdateFile(filepath,sockConn);
   }
 
   void SyncAdd(const char *filepath,long long filesize)
   {
+    //char test[JSONSIZE]={'\0'};
     Localfl.Add(filepath,filesize);
+
+
     FileUpdate(filepath,filesize);
+    SendSignal(5,sockConn);
   }
   void SyncDelete(const char *filepath)
   {
@@ -386,7 +508,7 @@ Sync *cli=new Sync();
 void filesync(int num)
 {
   struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer("192.168.84.128",DEFAULTPORT,server_addr);
+  int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
   cli->SetsockConn(sockConn);
   cli->FileSync();
   ShutDownConnect(sockConn);
@@ -399,18 +521,18 @@ void mainstream()
 
   
   struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer("192.168.84.128",DEFAULTPORT,server_addr);
+  int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
   cli->SetsockConn(sockConn);
-  cli->SyncAdd("./SyncFloderServer/test1.txt",0);
-  cli->SyncDelete("./SyncFloderServer/test1.txt");
+  cli->SyncAdd("./SyncFloderServer/test.pdf",0);
+  //cli->SyncDelete("./SyncFloderServer/test1.txt");
 
-  signal(SIGALRM,filesync);
-  alarm(UPDATERATE);
-  char command[1024]={'\0'};
-  while(1)
-  {
+  //signal(SIGALRM,filesync);
+  //alarm(UPDATERATE);
+  //char command[1024]={'\0'};
+  //while(1)
+  //{
     //sleep(UPDATERATE);
-  }
+  //}
 }
 
 

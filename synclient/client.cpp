@@ -1,117 +1,11 @@
-#include <stdio.h>
-#include <iostream>
-#include <sys/un.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <signal.h>
-#include <string>
-#include <vector>
-#include "cJSON.h"
-
-
-using namespace std;
-#define DEFAULTPORT 8001
-#define FILELISTSIZE 1024
-#define BUFFSIZE 512
-#define JSONSIZE 2048
-#define SIGSIZE 17
-
-#define UPDATERATE 3
-
-
-//char fileend[BUFFSIZE]={'\0'};
+#include "head.h"
+#include "code.h"
+#include "FileTransport.h"
+#include "Compress.h"
 
 
 
-void DownloadFile(const char *filepath,int clientfd)
-{
 
-  printf("downloading file %s......\n",filepath);
-
-  
-
-  char recvBuf[JSONSIZE]={'\0'};
-  int filefd;
-  long long totallength = 0;
-  filefd = open(filepath,O_RDWR|O_CREAT,0777);
-  while(1)
-  {
-
-    cJSON *transgram;
-
-    int test=recv(clientfd,recvBuf,JSONSIZE,0);
-
-
-    send(clientfd,"acknowledge",JSONSIZE,0);
-
-
-
-    transgram=cJSON_Parse(recvBuf);
-    int len=cJSON_GetObjectItem(transgram,"length")->valueint;
-
-    if(len==0)
-    {
-      break;
-    }
-    write(filefd ,cJSON_GetObjectItem(transgram,"datapack")->valuestring ,len);
-    memset(recvBuf,'\0',JSONSIZE);
-    totallength+=len;
-  }
-  int num=lseek(filefd,0,SEEK_END);
- ftruncate(filefd,totallength);
-}
-
-
-int UpdateFile(const char *filepath,int sockConn)
-{
-
-  int filefd=open(filepath,O_RDONLY);
-  if(filefd<0)
-  {
-    printf("file open error!\n");
-    return -1;
-  }
-  char sendBuf[JSONSIZE]={'\0'};
-  char jsonbuf[JSONSIZE]={'\0'};
-  while(1)
-  {
-    char *sendjson;
-    cJSON *transgram=cJSON_CreateObject();
-
-    int len = read(filefd,sendBuf,BUFFSIZE);
-
-    cJSON_AddItemToObject(transgram,"length",cJSON_CreateNumber(len));
-    cJSON_AddItemToObject(transgram,"datapack",cJSON_CreateString(sendBuf));
-    sendjson=cJSON_Print(transgram);
-
-    //printf("the length of sendjson is %d\n",strlen(sendjson)+1);
-    //printf("WTF the json is %s \n",sendjson);
-    strcpy(jsonbuf,sendjson);
-
-
-    int temp=send(sockConn,jsonbuf,JSONSIZE,0);
-
-
-    recv(sockConn,sendBuf,JSONSIZE,0);
-
-
-    memset(sendBuf,'\0',JSONSIZE);
-    if(len < 1)
-    {
-      break;
-    }
-  }
-  return 0;
-}
 
 
 
@@ -124,8 +18,6 @@ void SendSignal(int sig,int sockConn)
       signals=cJSON_Print(root);
       send(sockConn,signals,SIGSIZE,0);
 }
-
-
 
 
 
@@ -216,12 +108,12 @@ public:
   }
   void RequestServerfl(int sockConn)
   {
-    char *signals;
-    cJSON *root=cJSON_CreateObject();
-    cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(1));
-    signals=cJSON_Print(root);
-    send(sockConn,signals,SIGSIZE,0);
-
+    //char *signals;
+    //cJSON *root=cJSON_CreateObject();
+    //cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(1));
+    //signals=cJSON_Print(root);
+    //send(sockConn,signals,SIGSIZE,0);
+    SendSignal(1,sockConn);
 
     char data[FILELISTSIZE]={'\0'};
 
@@ -241,12 +133,7 @@ public:
     for(int i=0;i<sizeofarray;++i)
     {
       char *temp=cJSON_GetArrayItem(filepath,i)->valuestring;
-
-
       Serverfl.FilePath[i]=*(new string(temp));
-      
-
-
     }
 
 
@@ -284,8 +171,16 @@ public:
       {
 
 
-
-          DownloadFile(Serverfl.FilePath[i].c_str(),sockConn);
+          if(strstr(Serverfl.FilePath[i].c_str(),".txt")==NULL)
+          {
+            DownloadFile("encodedfile",sockConn);
+            BinaryFileDecode(Serverfl.FilePath[i].c_str());
+          }
+          else
+          {
+            DownloadFile("compressedfile.gz",sockConn);
+            UnCompressFile(Serverfl.FilePath[i].c_str());
+          }
 
 
           printf("download success!next one\n");
@@ -309,12 +204,13 @@ public:
   void FileUpdate(const char *filepath,int filesize)//专门认为是从客户端上传到服务器端
   {
     //add or delete or change will do this
-    char *signals;
-    cJSON *root=cJSON_CreateObject();
-    cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(3));
-    signals=cJSON_Print(root);
-    send(sockConn,signals,SIGSIZE,0);
-
+   // char *signals;
+   // cJSON *root=cJSON_CreateObject();
+   // cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(3));
+   // signals=cJSON_Print(root);
+   // send(sockConn,signals,SIGSIZE,0);
+    
+    SendSignal(3,sockConn);
     Localfl.Add(filepath,filesize);
 
 
@@ -325,21 +221,31 @@ public:
     send(sockConn,fileinfosend,BUFFSIZE,0);
 
 
-    UpdateFile(filepath,sockConn);
+    printf("I should zuse here\n");
+    recv(sockConn,NULL,JSONSIZE,0);
+    printf("I am right!\n");
+
+
+    UploadFile(filepath,sockConn);
   }
 
   void SyncAdd(const char *filepath,long long filesize)
   {
+    //char test[JSONSIZE]={'\0'};
     Localfl.Add(filepath,filesize);
+
+
     FileUpdate(filepath,filesize);
+    SendSignal(5,sockConn);
   }
   void SyncDelete(const char *filepath)
   {
-    char *signals;
-    cJSON *root=cJSON_CreateObject();
-    cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(4));
-    signals=cJSON_Print(root);
-    send(sockConn,signals,SIGSIZE,0);
+    //char *signals;
+    //cJSON *root=cJSON_CreateObject();
+    //cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(4));
+    //signals=cJSON_Print(root);
+    //send(sockConn,signals,SIGSIZE,0);
+    SendSignal(4,sockConn);
 
     Localfl.Delete(filepath);
     send(sockConn,filepath,JSONSIZE,0);
@@ -386,7 +292,7 @@ Sync *cli=new Sync();
 void filesync(int num)
 {
   struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer("192.168.84.128",DEFAULTPORT,server_addr);
+  int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
   cli->SetsockConn(sockConn);
   cli->FileSync();
   ShutDownConnect(sockConn);
@@ -399,18 +305,18 @@ void mainstream()
 
   
   struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer("192.168.84.128",DEFAULTPORT,server_addr);
+  int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
   cli->SetsockConn(sockConn);
-  cli->SyncAdd("./SyncFloderServer/test1.txt",0);
-  cli->SyncDelete("./SyncFloderServer/test1.txt");
+  cli->SyncAdd("./SyncFloderServer/test.pdf",0);
+  //cli->SyncDelete("./SyncFloderServer/test1.txt");
 
-  signal(SIGALRM,filesync);
-  alarm(UPDATERATE);
-  char command[1024]={'\0'};
-  while(1)
-  {
+  //signal(SIGALRM,filesync);
+  //alarm(UPDATERATE);
+  //char command[1024]={'\0'};
+  //while(1)
+  //{
     //sleep(UPDATERATE);
-  }
+  //}
 }
 
 
