@@ -6,6 +6,31 @@
 
 
 
+int ConnectToServer(const char *address,int port,struct sockaddr_in& server_addr)
+{
+  printf("Connecting to Server......\n");
+  server_addr.sin_addr.s_addr=inet_addr(address);
+  server_addr.sin_port=htons(port);
+  server_addr.sin_family=AF_INET;
+  int sockfd=socket(PF_INET,SOCK_STREAM,0);
+  if(sockfd<0)
+  {
+    printf("socket error!\n");
+    return -1;
+ 
+  }
+  if(connect(sockfd,(struct sockaddr*)(&server_addr),sizeof(struct sockaddr)) == -1)
+  {
+    printf("connect error!\n");
+    return -1;
+  }
+  printf("connect success!\n");
+  return sockfd;
+}
+void ShutDownConnect(int sockConn)
+{
+  close(sockConn);
+}
 
 
 
@@ -204,15 +229,10 @@ public:
   void FileUpdate(const char *filepath,int filesize)//专门认为是从客户端上传到服务器端
   {
     //add or delete or change will do this
-   // char *signals;
-   // cJSON *root=cJSON_CreateObject();
-   // cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(3));
-   // signals=cJSON_Print(root);
-   // send(sockConn,signals,SIGSIZE,0);
     
     SendSignal(3,sockConn);
     Localfl.Add(filepath,filesize);
-
+  
 
     cJSON *fileinfo=cJSON_CreateObject();
     cJSON_AddItemToObject(fileinfo,"filepath",cJSON_CreateString(filepath));
@@ -225,12 +245,16 @@ public:
     recv(sockConn,NULL,JSONSIZE,0);
     printf("I am right!\n");
 
+   
 
     UploadFile(filepath,sockConn);
   }
 
   void SyncAdd(const char *filepath,long long filesize)
   {
+    struct sockaddr_in server_addr;
+    int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
+    SetsockConn(sockConn);
     //char test[JSONSIZE]={'\0'};
     Localfl.Add(filepath,filesize);
 
@@ -260,31 +284,6 @@ private:
 
 
 
-int ConnectToServer(const char *address,int port,struct sockaddr_in& server_addr)
-{
-  printf("Connecting to Server......\n");
-  server_addr.sin_addr.s_addr=inet_addr(address);
-  server_addr.sin_port=htons(port);
-  server_addr.sin_family=AF_INET;
-  int sockfd=socket(PF_INET,SOCK_STREAM,0);
-  if(sockfd<0)
-  {
-    printf("socket error!\n");
-    return -1;
- 
-  }
-  if(connect(sockfd,(struct sockaddr*)(&server_addr),sizeof(struct sockaddr)) == -1)
-  {
-    printf("connect error!\n");
-    return -1;
-  }
-  printf("connect success!\n");
-  return sockfd;
-}
-void ShutDownConnect(int sockConn)
-{
-  close(sockConn);
-}
 
 
 Sync *cli=new Sync();
@@ -304,19 +303,23 @@ void mainstream()
 {
 
   
-  struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
-  cli->SetsockConn(sockConn);
-  cli->SyncAdd("./SyncFloderServer/test.pdf",0);
+  //struct sockaddr_in server_addr;
+  //int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
+  //cli->SetsockConn(sockConn);
+  cli->SyncAdd("./SyncFloderServer/test1.txt",0);
+  cli->SyncAdd("./SyncFloderServer/test2.txt",0);
+  cli->SyncAdd("./SyncFloderServer/test6.txt",0);
+  cli->SyncAdd("./SyncFloderServer/test7.txt",0);
+  
   //cli->SyncDelete("./SyncFloderServer/test1.txt");
 
-  //signal(SIGALRM,filesync);
-  //alarm(UPDATERATE);
+  signal(SIGALRM,filesync);
+  alarm(UPDATERATE);
   //char command[1024]={'\0'};
-  //while(1)
-  //{
+  while(1)
+  {
     //sleep(UPDATERATE);
-  //}
+  }
 }
 
 
