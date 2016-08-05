@@ -42,4 +42,4 @@ using namespace std;
 #define USERLIMIT 5
 #define SIZE 100
 #define UPDATERATE 3
-
+#define DEFAULTIP "127.0.0.1"

@@ -9,6 +9,7 @@
 #include <zlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -19,7 +20,8 @@
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/socket.h> 
+#include <sys/socket.h>
+#include <sys/signal.h>
 #include <netinet/in.h> 
 #include <arpa/inet.h> //inet_ntoa()函数的头文件
 extern "C"
@@ -42,4 +44,4 @@ using namespace std;
 #define USERLIMIT 5
 #define SIZE 100
 #define UPDATERATE 3
-
+#define DEFAULTIP "127.0.0.1"

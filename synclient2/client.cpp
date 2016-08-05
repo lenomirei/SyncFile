@@ -126,7 +126,7 @@ public:
   }
   void InitLocalfl()
   {
-    mkdir("SyncFloderServer",0777);
+    mkdir("S",0777);
     Localfl.FilePath.resize(10);
     Localfl.FileSize.resize(10);
 
@@ -256,11 +256,22 @@ public:
     }
   }
 
+  void Connect()
+  {
+
+    struct sockaddr_in server_addr;
+    int sockConn=ConnectToServer(DEFAULTIP,DEFAULTPORT,server_addr);
+    if(sockConn<0)
+    {
+      printf("connect error exit after 3 seconds\n");
+      sleep(3);
+      exit(-1);
+    }
+    SetsockConn(sockConn);
+  }
   void SyncAdd(const char *filepath,long long filesize)
   {
-    struct sockaddr_in server_addr;
-    int sockConn=ConnectToServer("127.0.0.1",DEFAULTPORT,server_addr);
-    SetsockConn(sockConn);
+    Connect();
     //char test[JSONSIZE]={'\0'};
     Localfl.Add(filepath,filesize);
 
@@ -270,15 +281,12 @@ public:
   }
   void SyncDelete(const char *filepath)
   {
-    //char *signals;
-    //cJSON *root=cJSON_CreateObject();
-    //cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(4));
-    //signals=cJSON_Print(root);
-    //send(sockConn,signals,SIGSIZE,0);
+    Connect();
     SendSignal(4,sockConn);
 
     Localfl.Delete(filepath);
     send(sockConn,filepath,JSONSIZE,0);
+    SendSignal(5,sockConn);
   }
   void SyncChange();
 
@@ -297,7 +305,7 @@ Sync *cli=new Sync();
 void filesync(int num)
 {
   struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer("127.0.0.1",DEFAULTPORT,server_addr);
+  int sockConn=ConnectToServer(DEFAULTIP,DEFAULTPORT,server_addr);
   cli->SetsockConn(sockConn);
   cli->FileSync();
   ShutDownConnect(sockConn);
@@ -332,12 +340,70 @@ void mainstream()
   //cli->SyncAdd("./SyncFloderServer/test.pdf",0);
   //cli->SyncDelete("./SyncFloderServer/test1.txt");
 
-  signal(SIGALRM,filesync);
-  alarm(UPDATERATE);
-  char command[1024]={'\0'};
-  while(1)
+  char command[100]={'\0'};
+  char selection='1';
+  while(selection!=4)
   {
-    //sleep(UPDATERATE);
+    switch(selection)
+    {
+      case '1':
+        sigset_t s,o;
+        sigemptyset(&s);
+        sigemptyset(&o);
+        sigaddset(&s,SIGALRM);
+        sigprocmask(SIG_SETMASK,&s,&o);
+        printf("please input command\n");
+        cin>>command;
+
+        char *temp;
+        temp=strtok(command,",");
+        if(strcmp(temp,"add")==0)
+        {
+          temp=strtok(NULL,",");
+          cli->SyncAdd(temp,0);
+
+        }
+        else if(strcmp(temp,"delete")==0)
+        {
+          temp=strtok(NULL,",");
+          cli->SyncDelete(temp);
+        }
+        else if(strcmp(temp,"sync")==0)
+        {
+          selection='2';
+        }
+        else if(strcmp(temp,"exit")==0)
+        {
+          selection='3';
+        }
+
+        sigprocmask(SIG_SETMASK,&o,NULL);
+        break; 
+      case '2':
+        struct pollfd fds[1];
+        fds[0].fd=0;
+        fds[0].events=POLLIN | POLLERR;
+        fds[0].revents=0;
+        signal(SIGALRM,filesync);
+        alarm(UPDATERATE);
+        while(1)
+        {
+          int ret;
+          ret=poll(fds,1,-1);
+          if(fds[0].revents & POLLIN)
+          {
+            read(0,&selection,1);
+            break;
+          }
+        }
+        break;
+      case '3':
+        printf("exit!\n");
+        return;
+        break;
+      default:
+        break;
+     }
   }
 }
 

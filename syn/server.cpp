@@ -2,7 +2,6 @@
 #include "Compress.h"
 #include "code.h"
 #include "FileTransport.h"
-#include "user.h"
 
 vector<int> lock;
 
@@ -51,9 +50,9 @@ struct FileList
     itsize=FileSize.begin();
     for(;it!=FilePath.end();)
     {
-      printf("%s   ",it->c_str());
-      printf("%d\n",*itsize);
-      if(*it==filepath)
+      printf("filepath:%s\n",it->c_str());
+      printf("size :%d\n",*itsize);
+      if(*it==string(filepath))
       {
         it=FilePath.erase(it);
         itsize=FileSize.erase(itsize);
@@ -366,9 +365,12 @@ void* mainstream(void *net)
     }
   }
 }
+int kirito;
 
-
-
+void Exit(int num)
+{
+  CloseSocket(kirito);
+}
 
 
 int main()
@@ -377,16 +379,18 @@ int main()
   //init lock
   lock.resize(10);
 
+  //add exit way
+  signal(SIGINT,Exit);
 
   //try to connect client
   struct sockaddr_in server_addr;
   int sockfd;
-  sockfd=BindSocket("127.0.0.1",DEFAULTPORT,server_addr);
+  sockfd=BindSocket(DEFAULTIP,DEFAULTPORT,server_addr);
   struct netneed net;
   net.sockfd=sockfd;
   net.server_addr=server_addr;
 
-  
+  kirito=sockfd;
 
   struct pollfd fds[1];
   fds[0].fd=sockfd;
