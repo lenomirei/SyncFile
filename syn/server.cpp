@@ -2,7 +2,7 @@
 #include "Compress.h"
 #include "code.h"
 #include "FileTransport.h"
-
+#include "user.h"
 
 vector<int> lock;
 
@@ -27,32 +27,19 @@ struct FileList
     FilePath.resize(10);
     FileSize.resize(10);
   }
-  int Add(const char *filepath,long long filesize)
+  void Add(const char *filepath,long long filesize)
   {
-    printf("the filepath is %s\n",filepath);
-
     for(int i=0;i<size;++i)
     {
-      printf("the FileList is %s\n",FilePath[i].c_str());
-      if(strcmp(FilePath[i].c_str(),filepath)==0)
+      if(strcmp(filepath,FilePath[i].c_str())==0)
       {
-        while(lock[i]==1)
-        {
-          sleep(2);
-          printf("someon is using this file ,I must wait for unlock%d\n",i);
-        }
-        lock[i]=1;
-
-        printf("I get the lock%d\n",i);
-
-        return i;
+        FileSize[i]=filesize;
+        return ;
       }
     }
     FilePath[size]=filepath;
     FileSize[size]=filesize;
-    lock[size]=1;
     size++;
-    return (size-1);
   }
   void Delete(const char *filepath)
   {
@@ -281,7 +268,6 @@ void* mainstream(void *net)
 
         }
 
-       // sleep(10) ;
       }
 
 
@@ -298,16 +284,38 @@ void* mainstream(void *net)
       cJSON *fileinfo=cJSON_Parse(fileinforecv);
       char *filepath=cJSON_GetObjectItem(fileinfo,"filepath")->valuestring;
       int filesize=cJSON_GetObjectItem(fileinfo,"filesize")->valueint;
-      int index=Serverfl->Add(filepath,filesize);
+
+      int index=0;
+      for(index=0;index<Serverfl->size;++index)
+      {
+        if(strcmp(filepath,Serverfl->FilePath[index].c_str())==0)
+        {
+          while(lock[index]==1)
+          {
+            printf("someone is using this file ,I must wait for unlock\n");
+            sleep(3);
+          }
+#ifdef _DEBUG_
+          printf("lock %d!\n",index);
+#endif
+          lock[index]=1;
+          break;
+        }
+      }
+
+      Serverfl->Add(filepath,filesize);
 
       send(sockConn,"you can send file,i am ready",JSONSIZE,0);
-      DownloadFile(filepath,sockConn);
-      
+
+      DownloadFile("encodedfile",sockConn);
+
+      printf("recv success decoding\n");
+      BinaryFileDecode(filepath);
+      printf("decode success\n");
       //unlock
       lock[index]=0;
 #ifdef _DEBUG_
 
-      printf("unlock!%d\n",index);
 #endif
 
 
@@ -322,6 +330,21 @@ void* mainstream(void *net)
 
       printf("before delete %d\n",Serverfl->size);
 #endif
+      int index=0;
+      for(index=0;index<Serverfl->size;++index)
+      {
+        if(strcmp(filepath,Serverfl->FilePath[index].c_str())==0)
+        {
+          while(lock[index]==1)
+          {
+            printf("someone is using this file ,I must wait for unlock\n");
+            sleep(3);
+          }
+          lock[index]=1;
+          break;
+        }
+      }
+
 
       Serverfl->Delete(filepath);
 #ifdef _DEBUG_
@@ -331,7 +354,7 @@ void* mainstream(void *net)
       printf("__filelist delete__\n");
 
       remove(filepath);
-
+      lock[index]=0;
       printf("delete complete\n");
 
     }
@@ -358,7 +381,7 @@ int main()
   //try to connect client
   struct sockaddr_in server_addr;
   int sockfd;
-  sockfd=BindSocket("192.168.84.132",DEFAULTPORT,server_addr);
+  sockfd=BindSocket("127.0.0.1",DEFAULTPORT,server_addr);
   struct netneed net;
   net.sockfd=sockfd;
   net.server_addr=server_addr;

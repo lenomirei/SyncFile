@@ -43,7 +43,7 @@ int UploadFile(const char * filepath,int sockConn)
   }
   return 0;
 }
-int DownloadFile(char *filepath,int clientfd)
+int DownloadFile(const char *filepath,int clientfd)
 {
  
   printf("downloading file %s......\n",filepath);

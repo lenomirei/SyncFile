@@ -14,6 +14,7 @@
 #include <vector>
 
 
+#include <mysql/mysql.h>
 #include <sys/types.h> 
 #include <sys/un.h>
 #include <sys/stat.h>

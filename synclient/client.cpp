@@ -2,7 +2,7 @@
 #include "code.h"
 #include "FileTransport.h"
 #include "Compress.h"
-
+#include "user.h"
 
 
 
@@ -241,19 +241,25 @@ public:
     send(sockConn,fileinfosend,BUFFSIZE,0);
 
 
-    printf("I should zuse here\n");
     recv(sockConn,NULL,JSONSIZE,0);
-    printf("I am right!\n");
 
    
-
-    UploadFile(filepath,sockConn);
+    if(strstr(filepath,".txt")==NULL)
+    {
+      BinaryFileEncode(filepath,sockConn);
+      UploadFile("encodedfile",sockConn);
+    }
+    else
+    {
+      CompressFile(filepath);
+      UploadFile("compressedfile.gz",sockConn);
+    }
   }
 
   void SyncAdd(const char *filepath,long long filesize)
   {
     struct sockaddr_in server_addr;
-    int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
+    int sockConn=ConnectToServer("127.0.0.1",DEFAULTPORT,server_addr);
     SetsockConn(sockConn);
     //char test[JSONSIZE]={'\0'};
     Localfl.Add(filepath,filesize);
@@ -291,7 +297,7 @@ Sync *cli=new Sync();
 void filesync(int num)
 {
   struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
+  int sockConn=ConnectToServer("127.0.0.1",DEFAULTPORT,server_addr);
   cli->SetsockConn(sockConn);
   cli->FileSync();
   ShutDownConnect(sockConn);
@@ -301,21 +307,34 @@ void filesync(int num)
 
 void mainstream()
 {
-
-  
-  //struct sockaddr_in server_addr;
-  //int sockConn=ConnectToServer("192.168.84.132",DEFAULTPORT,server_addr);
-  //cli->SetsockConn(sockConn);
-  cli->SyncAdd("./SyncFloderServer/test1.txt",0);
-  cli->SyncAdd("./SyncFloderServer/test2.txt",0);
-  cli->SyncAdd("./SyncFloderServer/test6.txt",0);
-  cli->SyncAdd("./SyncFloderServer/test7.txt",0);
-  
+  char username[21]={'\0'};
+  char userpassword[21]={'\0'};
+  char *userinfo;
+  cout<<"please input username"<<endl;
+  cin>>username;
+  cout<<"please input userpassword"<<endl;
+  cin>>userpassword;
+  while(UserCheck(username,userpassword)!=0)
+  {
+    system("clear");
+    printf("username or password is wrong ,please check in\n");
+    cout<<"please input username"<<endl;
+    cin>>username;
+    cout<<"please input userpassword"<<endl;
+    cin>>userpassword;
+  }
+  system("clear");
+  printf("login success!\n");
+  //cli->SyncAdd("./SyncFloderServer/test1.txt",0);
+  //cli->SyncAdd("./SyncFloderServer/test2.txt",0);
+  //cli->SyncAdd("./SyncFloderServer/test6.txt",0);
+  //cli->SyncAdd("./SyncFloderServer/test7.txt",0);
+  //cli->SyncAdd("./SyncFloderServer/test.pdf",0);
   //cli->SyncDelete("./SyncFloderServer/test1.txt");
 
   signal(SIGALRM,filesync);
   alarm(UPDATERATE);
-  //char command[1024]={'\0'};
+  char command[1024]={'\0'};
   while(1)
   {
     //sleep(UPDATERATE);
