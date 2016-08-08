@@ -47,13 +47,17 @@ int DownloadFile(const char *filepath,int clientfd)
   filefd = open(filepath,O_RDWR|O_CREAT,0777);
   while(1)
   {
-    recv(clientfd,recvBuf,JSONSIZE,0);
+    int test=recv(clientfd,recvBuf,JSONSIZE,0);
+   // printf("test is %d\n",test);
     struct datapack *Buf=(struct datapack *)recvBuf;
 
     int len=Buf->size;
+
+ //   printf("len is %d,data is %s\n",len,Buf->data);
     send(clientfd,"acknowledge",JSONSIZE,0);
     if(len==0)
     {
+     // printf("i try to break\n");
       break;
     }
     write(filefd ,Buf->data ,len);

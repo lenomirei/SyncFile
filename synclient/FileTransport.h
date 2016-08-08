@@ -24,6 +24,8 @@ int UploadFile(const char * filepath,int sockConn)
     struct datapack *Buf=new datapack();
     int len = read(filefd,Buf->data,BUFFSIZE);
     Buf->size=len;
+//printf("len is %d, data is %s\n",len,Buf->data);
+
     send(sockConn,Buf,JSONSIZE,0);
     recv(sockConn,alibaba,JSONSIZE,0);
     if(len < 1)

@@ -288,19 +288,18 @@ void* mainstream(void *net)
       Serverfl->Add(filepath,filesize);
 
       send(sockConn,"you can send file,i am ready",JSONSIZE,0);
-     
-     
+#ifdef _DEBUG_
+	clock_t start=clock();     
+#endif
         DownloadFile(filepath,sockConn);
-      
+#ifdef _DEBUG_
+      	clock_t end=clock();
+        cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
+#endif 
     
 
       //unlock
       lock[index]=0;
-#ifdef _DEBUG_
-
-#endif
-
-
     }
     else if(sig == 4)//client delete
     {
