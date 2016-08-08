@@ -231,10 +231,10 @@ public:
     cJSON_AddItemToObject(fileinfo,"filepath",cJSON_CreateString(filepath));
     cJSON_AddItemToObject(fileinfo,"filesize",cJSON_CreateNumber(filesize));
     char *fileinfosend=cJSON_Print(fileinfo);
-    send(sockConn,fileinfosend,BUFFSIZE,0);
+    send(sockConn,fileinfosend,1024,0);
 
-
-    recv(sockConn,NULL,JSONSIZE,0);
+char ttt[1024]={'\0'};
+    recv(sockConn,ttt,1024,0);
 
 #ifdef _DEBUG_
     clock_t start=clock();

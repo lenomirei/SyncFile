@@ -256,9 +256,9 @@ void* mainstream(void *net)
     }
     else if(sig==3)//client add
     {
-      char fileinforecv[BUFFSIZE]={'\0'};
+      char fileinforecv[1024]={'\0'};
       
-      recv(sockConn,fileinforecv,BUFFSIZE,0);
+      recv(sockConn,fileinforecv,1024,0);
 #ifdef _DEBUG_
       printf("the filepath is %s\n",fileinforecv);
 #endif
@@ -287,7 +287,7 @@ void* mainstream(void *net)
 
       Serverfl->Add(filepath,filesize);
 
-      send(sockConn,"you can send file,i am ready",JSONSIZE,0);
+      send(sockConn,"you can send file,i am ready",1024,0);
 #ifdef _DEBUG_
 	clock_t start=clock();     
 #endif
