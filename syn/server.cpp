@@ -219,7 +219,7 @@ void* mainstream(void *net)
     printf("wating for signals......\n\n");
     recv(sockConn,signals,SIGSIZE,0);
 
-
+    printf("the signal str is %s\n",signals);
 
     cJSON *root=cJSON_Parse(signals);
     memset(signals,'\0',SIGSIZE);
@@ -240,32 +240,15 @@ void* mainstream(void *net)
       //requesr for downloadfile
       for(int i=0;i<Serverfl->size;++i)
       {
-        if(strstr(Serverfl->FilePath[i].c_str(),".txt")==NULL)
-        {
-          BinaryFileEncode(Serverfl->FilePath[i].c_str(),sockConn);
+        
 #ifdef _DEBUG_
           clock_t start=clock();
 #endif
-          UploadFile("encodedfile",sockConn);
+          UploadFile(Serverfl->FilePath[i].c_str(),sockConn);
 #ifdef _DEBUG_
           clock_t end=clock();
           cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
 #endif
-        }
-        else
-        {
-
-          CompressFile(Serverfl->FilePath[i].c_str());
-#ifdef _DEBUG_
-          clock_t start=clock();
-#endif
-          UploadFile("compressedfile.gz",sockConn);
-#ifdef _DEBUG_
-          clock_t end=clock();
-          cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
-#endif
-
-        }
 
       }
 
@@ -305,12 +288,12 @@ void* mainstream(void *net)
       Serverfl->Add(filepath,filesize);
 
       send(sockConn,"you can send file,i am ready",JSONSIZE,0);
+     
+     
+        DownloadFile(filepath,sockConn);
+      
+    
 
-      DownloadFile("encodedfile",sockConn);
-
-      printf("recv success decoding\n");
-      BinaryFileDecode(filepath);
-      printf("decode success\n");
       //unlock
       lock[index]=0;
 #ifdef _DEBUG_

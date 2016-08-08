@@ -1,4 +1,12 @@
-
+struct datapack
+{
+  int size;
+  char data[BUFFSIZE];
+  datapack()
+  {
+    memset(data,'\0',BUFFSIZE);
+  }
+};
 
 int UploadFile(const char * filepath,int sockConn)
 {
@@ -11,31 +19,14 @@ int UploadFile(const char * filepath,int sockConn)
     printf("file open error!\n");
     return -1;
   }
-  char sendBuf[JSONSIZE]={'\0'};
-  char jsonbuf[JSONSIZE]={'\0'};
+  char alibaba[JSONSIZE]={'\0'};
   while(1)
   {
-    char *sendjson;
-    cJSON *transgram=cJSON_CreateObject();
-
-    int len = read(filefd,sendBuf,BUFFSIZE);
-
-    cJSON_AddItemToObject(transgram,"length",cJSON_CreateNumber(len));
-    cJSON_AddItemToObject(transgram,"datapack",cJSON_CreateString(sendBuf));
-    sendjson=cJSON_Print(transgram);
-
-    //printf("the length of sendjson is %d\n",strlen(sendjson)+1);
-    //printf("WTF the json is %s \n",sendjson);
-    strcpy(jsonbuf,sendjson);
-
-
-    int temp=send(sockConn,jsonbuf,JSONSIZE,0);
-
-
-    recv(sockConn,sendBuf,JSONSIZE,0);
-
-
-    memset(sendBuf,'\0',JSONSIZE);
+    struct datapack *Buf=new datapack();
+    int len = read(filefd,Buf->data,BUFFSIZE);
+    Buf->size=len;
+    int test=send(sockConn,Buf,JSONSIZE,0);
+    recv(sockConn,alibaba,JSONSIZE,0);
     if(len < 1)
     {
       break;
@@ -50,31 +41,22 @@ int DownloadFile(const char *filepath,int clientfd)
 
   
 
-  char recvBuf[JSONSIZE]={'\0'};
+  char *recvBuf[JSONSIZE]={'\0'};
   int filefd;
   long long totallength = 0;
   filefd = open(filepath,O_RDWR|O_CREAT,0777);
   while(1)
   {
+    recv(clientfd,recvBuf,JSONSIZE,0);
+    struct datapack *Buf=(struct datapack *)recvBuf;
 
-    cJSON *transgram;
-
-    int test=recv(clientfd,recvBuf,JSONSIZE,0);
-
-
+    int len=Buf->size;
     send(clientfd,"acknowledge",JSONSIZE,0);
-
-
-
-    transgram=cJSON_Parse(recvBuf);
-    int len=cJSON_GetObjectItem(transgram,"length")->valueint;
-
     if(len==0)
     {
       break;
     }
-    write(filefd ,cJSON_GetObjectItem(transgram,"datapack")->valuestring ,len);
-    memset(recvBuf,'\0',JSONSIZE);
+    write(filefd ,Buf->data ,len);
     totallength+=len;
   }
   int num=lseek(filefd,0,SEEK_END);

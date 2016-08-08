@@ -4,7 +4,15 @@
 #include "Compress.h"
 #include "user.h"
 
+void SendSignal(int sig,int sockConn)
+{
 
+      char *signals;
+      cJSON *root=cJSON_CreateObject();
+      cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(sig));
+      signals=cJSON_Print(root);
+      send(sockConn,signals,SIGSIZE,0);
+}
 
 int ConnectToServer(const char *address,int port,struct sockaddr_in& server_addr)
 {
@@ -34,15 +42,6 @@ void ShutDownConnect(int sockConn)
 
 
 
-void SendSignal(int sig,int sockConn)
-{
-
-      char *signals;
-      cJSON *root=cJSON_CreateObject();
-      cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(sig));
-      signals=cJSON_Print(root);
-      send(sockConn,signals,SIGSIZE,0);
-}
 
 
 
@@ -196,16 +195,10 @@ public:
       {
 
 
-          if(strstr(Serverfl.FilePath[i].c_str(),".txt")==NULL)
-          {
-            DownloadFile("encodedfile",sockConn);
-            BinaryFileDecode(Serverfl.FilePath[i].c_str());
-          }
-          else
-          {
-            DownloadFile("compressedfile.gz",sockConn);
-            UnCompressFile(Serverfl.FilePath[i].c_str());
-          }
+        
+            DownloadFile(Serverfl.FilePath[i].c_str(),sockConn);
+        
+       
 
 
           printf("download success!next one\n");
@@ -243,32 +236,17 @@ public:
 
     recv(sockConn,NULL,JSONSIZE,0);
 
-   
-    if(strstr(filepath,".txt")==NULL)
-    {
-      BinaryFileEncode(filepath,sockConn);
-      UploadFile("encodedfile",sockConn);
-    }
-    else
-    {
-      CompressFile(filepath);
-      UploadFile("compressedfile.gz",sockConn);
-    }
+#ifdef _DEBUG_
+    clock_t start=clock();
+#endif
+      UploadFile(filepath,sockConn);
+#ifdef _DEBUG_
+      clock_t end=clock();
+      cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
+#endif
+  
   }
 
-  void Connect()
-  {
-
-    struct sockaddr_in server_addr;
-    int sockConn=ConnectToServer(DEFAULTIP,DEFAULTPORT,server_addr);
-    if(sockConn<0)
-    {
-      printf("connect error exit after 3 seconds\n");
-      sleep(3);
-      exit(-1);
-    }
-    SetsockConn(sockConn);
-  }
   void SyncAdd(const char *filepath,long long filesize)
   {
     Connect();
@@ -289,7 +267,19 @@ public:
     SendSignal(5,sockConn);
   }
   void SyncChange();
+void Connect()
+{
 
+  struct sockaddr_in server_addr;
+  int sockConn=ConnectToServer(DEFAULTIP,DEFAULTPORT,server_addr);
+  if(sockConn<0)
+  {
+    printf("connect error exit after 3 seconds\n");
+    sleep(3);
+    exit(-1);
+  }
+  SetsockConn(sockConn);
+}
 private:
   int sockConn;
   FileList Localfl;
@@ -297,10 +287,12 @@ private:
 };
 
 
-
-
-
 Sync *cli=new Sync();
+
+
+
+
+
 
 void filesync(int num)
 {
@@ -315,24 +307,24 @@ void filesync(int num)
 
 void mainstream()
 {
-  char username[21]={'\0'};
-  char userpassword[21]={'\0'};
-  char *userinfo;
-  cout<<"please input username"<<endl;
-  cin>>username;
-  cout<<"please input userpassword"<<endl;
-  cin>>userpassword;
-  while(UserCheck(username,userpassword)!=0)
-  {
-    system("clear");
-    printf("username or password is wrong ,please check in\n");
-    cout<<"please input username"<<endl;
-    cin>>username;
-    cout<<"please input userpassword"<<endl;
-    cin>>userpassword;
-  }
-  system("clear");
-  printf("login success!\n");
+  //char username[21]={'\0'};
+  //char userpassword[21]={'\0'};
+  //char *userinfo;
+  //cout<<"please input username"<<endl;
+  //cin>>username;
+  //cout<<"please input userpassword"<<endl;
+  //cin>>userpassword;
+  //while(UserCheck(username,userpassword)!=0)
+  //{
+  //  system("clear");
+  //  printf("username or password is wrong ,please check in\n");
+  //  cout<<"please input username"<<endl;
+  //  cin>>username;
+  //  cout<<"please input userpassword"<<endl;
+  //  cin>>userpassword;
+  //}
+  //system("clear");
+  //printf("login success!\n");
   //cli->SyncAdd("./SyncFloderServer/test1.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test2.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test6.txt",0);

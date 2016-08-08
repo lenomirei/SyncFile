@@ -35,11 +35,11 @@ extern "C"
 using namespace std;
 
 #define BUFFSIZE 512
-#define JSONSIZE 2048
+#define JSONSIZE 516
 #define DEFAULTPORT 8001
 #define FILELISTSIZE 1024
 #define SIGSIZE 17 
 #define USERLIMIT 5
 #define SIZE 100
 #define UPDATERATE 3
-#define DEFAULTIP "127.0.0.1"
+#define DEFAULTIP "192.168.84.133"
