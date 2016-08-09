@@ -14,6 +14,16 @@ void SendSignal(int sig,int sockConn)
       send(sockConn,signals,SIGSIZE,0);
 }
 
+long long GetFileSize(const char *filename)
+{
+  struct stat buf;
+  if(stat(filename,&buf)<0)
+  {
+    return 0;
+  }
+  return (long long)buf.st_size;
+}
+
 int ConnectToServer(const char *address,int port,struct sockaddr_in& server_addr)
 {
   printf("Connecting to Server......\n");
@@ -287,7 +297,30 @@ public:
     send(sockConn,filepath,JSONSIZE,0);//!!!!!!!!!!!!!!!!!!
     SendSignal(5,sockConn);
   }
-  void SyncChange();
+  void SyncContinue()
+  {
+    if(GetFileSize("./log")>0)
+    {
+      FILE *fp=NULL;
+      long long offset=0;
+      char filename[20]={'\0'};
+      fp=fopen("log","rb");
+      if(NULL==fp)
+      {
+        return ;
+      }
+      fscanf(fp,"%s %lld",filename,&offset);
+      Connect();
+      SendSignal(6,sockConn);
+      cJSON *fileinfo=cJSON_CreateObject();
+      cJSON_AddItemToObject(fileinfo,"filename",cJSON_CreateString(filename));
+      cJSON_AddItemToObject(fileinfo,"offset",cJSON_CreateNumber(offset));
+      char *fileinfosend=cJSON_Print(fileinfo);
+      send(sockConn,fileinfosend,1024,0);
+      DownloadFile(filename,sockConn,offset);
+      SendSignal(5,sockConn);
+    }
+  }
   int Connect()
   {
   
@@ -309,7 +342,6 @@ private:
 
 
 Sync *cli=new Sync();
-
 
 
 
@@ -352,6 +384,10 @@ void mainstream()
   //cli->SyncAdd("./SyncFloderServer/test7.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test.pdf",0);
   //cli->SyncDelete("./SyncFloderServer/test1.txt");
+  
+
+  signal(SIGINT,Test);
+  //cli->SyncContinue();
 
   char command[100]={'\0'};
   char selection='1';

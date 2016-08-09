@@ -347,6 +347,21 @@ void* mainstream(void *net)
       ShutDownConnect(sockConn);
       pthread_exit((void*)1);
     }
+    else if(sig==6)
+    {
+
+      char fileinforecv[1024]={'\0'};
+      
+      recv(sockConn,fileinforecv,1024,0);
+#ifdef _DEBUG_
+      printf("the filepath is %s\n",fileinforecv);
+#endif
+
+      cJSON *fileinfo=cJSON_Parse(fileinforecv);
+      char *filename=cJSON_GetObjectItem(fileinfo,"filename")->valuestring;
+      long long offset=cJSON_GetObjectItem(fileinfo,"offset")->valueint;
+      UploadFile(filename,sockConn,offset);
+    }
   }
 }
 int kirito;
