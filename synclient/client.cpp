@@ -67,12 +67,19 @@ struct FileList
     it = FilePath.begin();
     itsize=FileSize.begin();
     for(;it!=FilePath.end();)
-    {
+   {
       if(*it==filepath)
       {
         it=FilePath.erase(it);
         itsize=FileSize.erase(itsize);
+        size--;
         break;
+      }
+      else if(strstr((*it).c_str(),filepath)!=NULL)
+      {
+        it=FilePath.erase(it);
+        itsize=FileSize.erase(itsize);
+        size--;
       }
       else
       {
@@ -80,7 +87,6 @@ struct FileList
         itsize++;
       }
     }
-    size--;
   }
   void change(const char *filepath,long long filesize)
   {
@@ -125,10 +131,8 @@ public:
   }
   void InitLocalfl()
   {
-    mkdir("S",0777);
     Localfl.FilePath.resize(10);
     Localfl.FileSize.resize(10);
-
   }
   void RequestServerfl(int sockConn)
   {
@@ -222,29 +226,46 @@ public:
   void FileUpdate(const char *filepath,int filesize)//专门认为是从客户端上传到服务器端
   {
     //add or delete or change will do this
-    
-    SendSignal(3,sockConn);
-    Localfl.Add(filepath,filesize);
+    struct stat buf;
+    lstat(filepath,&buf);
+    if(S_ISDIR(buf.st_mode))
+    {
+      printf("I am a dir!\n");
+      struct dirent *ent=NULL;
+      DIR *pDir;
+      pDir=opendir(filepath);
+      while(NULL!=(ent=readdir(pDir)))
+      {
+        printf("name is %s\n",ent->d_name);
+        if(strcmp(ent->d_name,".")==0 || strcmp(ent->d_name,"..")==0)
+        {
+          continue;
+        }
+        string temp=filepath;
+        temp+=ent->d_name;
+        FileUpdate(temp.c_str(),0);
+      }
+    }
+    else
+    {
+      SendSignal(3,sockConn);
+      Localfl.Add(filepath,filesize);
+      cJSON *fileinfo=cJSON_CreateObject();
+      cJSON_AddItemToObject(fileinfo,"filepath",cJSON_CreateString(filepath));
+      cJSON_AddItemToObject(fileinfo,"filesize",cJSON_CreateNumber(filesize));
+      char *fileinfosend=cJSON_Print(fileinfo);
+      send(sockConn,fileinfosend,1024,0);
   
-
-    cJSON *fileinfo=cJSON_CreateObject();
-    cJSON_AddItemToObject(fileinfo,"filepath",cJSON_CreateString(filepath));
-    cJSON_AddItemToObject(fileinfo,"filesize",cJSON_CreateNumber(filesize));
-    char *fileinfosend=cJSON_Print(fileinfo);
-    send(sockConn,fileinfosend,1024,0);
-
-char ttt[1024]={'\0'};
-    recv(sockConn,ttt,1024,0);
-
+      recv(sockConn,NULL,1024,0);
 #ifdef _DEBUG_
-    clock_t start=clock();
+      clock_t start=clock();
 #endif
-      UploadFile(filepath,sockConn);
+        int ret=UploadFile(filepath,sockConn);//!!!!!!!!!
 #ifdef _DEBUG_
-      clock_t end=clock();
-      cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
+        clock_t end=clock();
+        cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
 #endif
-  
+    }
   }
 
   void SyncAdd(const char *filepath,long long filesize)
@@ -263,22 +284,22 @@ char ttt[1024]={'\0'};
     SendSignal(4,sockConn);
 
     Localfl.Delete(filepath);
-    send(sockConn,filepath,JSONSIZE,0);
+    send(sockConn,filepath,JSONSIZE,0);//!!!!!!!!!!!!!!!!!!
     SendSignal(5,sockConn);
   }
   void SyncChange();
-void Connect()
-{
-
-  struct sockaddr_in server_addr;
-  int sockConn=ConnectToServer(DEFAULTIP,DEFAULTPORT,server_addr);
-  if(sockConn<0)
+  int Connect()
   {
-    printf("connect error exit after 3 seconds\n");
-    sleep(3);
-    exit(-1);
-  }
-  SetsockConn(sockConn);
+  
+    struct sockaddr_in server_addr;
+    int sockConn=ConnectToServer(DEFAULTIP,DEFAULTPORT,server_addr);
+    if(sockConn<0)
+    {
+      printf("connect error exit after 3 seconds\n");
+      sleep(3);
+      exit(-1);
+    }
+    SetsockConn(sockConn);
 }
 private:
   int sockConn;
@@ -352,13 +373,18 @@ void mainstream()
         if(strcmp(temp,"add")==0)
         {
           temp=strtok(NULL,",");
-          cli->SyncAdd(temp,0);
+          while(temp!=NULL)
+          {
+            cli->SyncAdd(temp,0);
+            temp=strtok(NULL,",");
+          }
 
         }
         else if(strcmp(temp,"delete")==0)
         {
           temp=strtok(NULL,",");
           cli->SyncDelete(temp);
+          //remove(temp);
         }
         else if(strcmp(temp,"sync")==0)
         {

@@ -45,6 +45,18 @@ int DownloadFile(const char *filepath,int clientfd)
   int filefd;
   long long totallength = 0;
   filefd = open(filepath,O_RDWR|O_CREAT,0777);
+  if(filefd<0)
+  {
+    char *dir=dirname((char *)filepath);
+#ifdef _DEBUG_
+    printf("dir is %s\n",dir);
+#endif
+    if(opendir(dir)==NULL)
+    {
+      mkdir(dir,0644);
+      filefd=open(filepath,O_RDWR | O_CREAT | O_TRUNC,0777);
+    }
+  }
   while(1)
   {
     int test=recv(clientfd,recvBuf,JSONSIZE,0);

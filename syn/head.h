@@ -9,10 +9,13 @@
 #include <zlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <dirent.h>
+#include <libgen.h>
+#include <time.h>
+
 #include <iostream>
 #include <string>
 #include <vector>
-
 
 #include <mysql/mysql.h>
 #include <sys/types.h> 
@@ -42,4 +45,4 @@ using namespace std;
 #define USERLIMIT 5
 #define SIZE 100
 #define UPDATERATE 3
-#define DEFAULTIP "192.168.1.1"
+#define DEFAULTIP "127.0.0.1"

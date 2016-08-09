@@ -42,21 +42,24 @@ struct FileList
   }
   void Delete(const char *filepath)
   {
-
-
     vector<string>::iterator it;
     vector<long long>::iterator itsize;
     it = FilePath.begin();
     itsize=FileSize.begin();
     for(;it!=FilePath.end();)
     {
-      printf("filepath:%s\n",it->c_str());
-      printf("size :%d\n",*itsize);
-      if(*it==string(filepath))
+      if(*it==filepath)
       {
         it=FilePath.erase(it);
         itsize=FileSize.erase(itsize);
+        size--;
         break;
+      }
+      else if(strstr((*it).c_str(),filepath)!=NULL)
+      {
+        it=FilePath.erase(it);
+        itsize=FileSize.erase(itsize);
+        size--;
       }
       else
       {
@@ -64,7 +67,6 @@ struct FileList
         itsize++;
       }
     }
-    size--;
   }
   void change(const char *filepath,long long filesize)
   {
