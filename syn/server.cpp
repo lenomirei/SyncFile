@@ -24,51 +24,51 @@ struct FileList
     :size(0)
   {
     FilePath.resize(10);
-    FileSize.resize(10);
+    Filemd5.resize(10);
   }
-  void Add(const char *filepath,long long filesize)
+  void Add(const char *filepath,const char* filemd5)
   {
     for(int i=0;i<size;++i)
     {
       if(strcmp(filepath,FilePath[i].c_str())==0)
       {
-        FileSize[i]=filesize;
+        Filemd5[i]=filemd5;
         return ;
       }
     }
     FilePath[size]=filepath;
-    FileSize[size]=filesize;
+    Filemd5[size]=filemd5;
     size++;
   }
   void Delete(const char *filepath)
   {
     vector<string>::iterator it;
-    vector<long long>::iterator itsize;
+    vector<string>::iterator itmd5;
     it = FilePath.begin();
-    itsize=FileSize.begin();
+    itmd5=Filemd5.begin();
     for(;it!=FilePath.end();)
     {
       if(*it==filepath)
       {
         it=FilePath.erase(it);
-        itsize=FileSize.erase(itsize);
+        itmd5=Filemd5.erase(itmd5);
         size--;
         break;
       }
       else if(strstr((*it).c_str(),filepath)!=NULL)
       {
         it=FilePath.erase(it);
-        itsize=FileSize.erase(itsize);
+        itmd5=Filemd5.erase(itmd5);
         size--;
       }
       else
       {
         it++;
-        itsize++;
+        itmd5++;
       }
     }
   }
-  void change(const char *filepath,long long filesize)
+  void change(const char *filepath,const char *filemd5)
   {
   }
   bool operator==(FileList &fl)
@@ -79,7 +79,7 @@ struct FileList
     }
     for(int i=0;i<size;++i)
     {
-      if(FilePath[i]!= fl.FilePath[i] || FileSize[i]!=fl.FileSize[i] )
+      if(FilePath[i]!= fl.FilePath[i] || Filemd5[i]!=fl.Filemd5[i] )
       {
         return false;
       }
@@ -87,8 +87,8 @@ struct FileList
     return true;
   }
     vector<string> FilePath;
-    vector<long long> FileSize;
-    size_t size;
+    vector<string> Filemd5;
+    int size;
 };
 
 void SendFileList(int sockConn,struct FileList& fl)
@@ -97,7 +97,7 @@ void SendFileList(int sockConn,struct FileList& fl)
   char sendfilelistjson[FILELISTSIZE]={'\0'};
 
   cJSON *filepath=cJSON_CreateArray();
-  cJSON *filesize=cJSON_CreateArray();
+  cJSON *filemd5=cJSON_CreateArray();
   for(int i=0;i<fl.size;++i)
   {
     cJSON_AddItemToArray(filepath,cJSON_CreateString(fl.FilePath[i].c_str()));
@@ -117,9 +117,9 @@ void SendFileList(int sockConn,struct FileList& fl)
   char *size;  
   for(int i=0;i<fl.size;++i)
   {
-    cJSON_AddItemToArray(filesize,cJSON_CreateNumber(fl.FileSize[i]));
+    cJSON_AddItemToArray(filemd5,cJSON_CreateString(fl.Filemd5[i].c_str()));
   }
-  size=cJSON_Print(filesize);
+  size=cJSON_Print(filemd5);
 
   strcpy(sendfilelistjson,size);
 
@@ -267,7 +267,7 @@ void* mainstream(void *net)
 
       cJSON *fileinfo=cJSON_Parse(fileinforecv);
       char *filepath=cJSON_GetObjectItem(fileinfo,"filepath")->valuestring;
-      int filesize=cJSON_GetObjectItem(fileinfo,"filesize")->valueint;
+      char *filemd5=cJSON_GetObjectItem(fileinfo,"filemd5")->valuestring;
 
       int index=0;
       for(index=0;index<Serverfl->size;++index)
@@ -287,7 +287,7 @@ void* mainstream(void *net)
         }
       }
 
-      Serverfl->Add(filepath,filesize);
+      Serverfl->Add(filepath,filemd5);
 
       send(sockConn,"you can send file,i am ready",1024,0);
 #ifdef _DEBUG_
@@ -306,7 +306,7 @@ void* mainstream(void *net)
     else if(sig == 4)//client delete
     {
       char filepath[JSONSIZE]={'\0'};
-      recv(sockConn,filepath,JSONSIZE,0);
+      recv(sockConn,filepath,512,0);
 #ifdef _DEBUG_
       printf("the filepath is %s\n",filepath);
 
@@ -335,8 +335,10 @@ void* mainstream(void *net)
 #endif
 
       printf("__filelist delete__\n");
-
-      remove(filepath);
+printf("delete filepath is %s\n",filepath);
+      string dsc="rm -rf ";
+      dsc+=filepath;
+      system(dsc.c_str());
       lock[index]=0;
       printf("delete complete\n");
 
@@ -368,6 +370,7 @@ int kirito;
 
 void Exit(int num)
 {
+//save point!!!!!
   CloseSocket(kirito);
 }
 

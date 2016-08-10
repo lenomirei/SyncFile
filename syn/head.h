@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include <openssl/md5.h> 
+
 #include <mysql/mysql.h>
 #include <sys/types.h> 
 #include <sys/un.h>

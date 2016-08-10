@@ -12,7 +12,9 @@
 #include <dirent.h>
 #include <libgen.h>
 #include <time.h>
+#include <termios.h>
 
+#include <openssl/md5.h> 
 
 #include <iostream>
 #include <string>
@@ -47,3 +49,13 @@ using namespace std;
 #define SIZE 100
 #define UPDATERATE 3
 #define DEFAULTIP "127.0.0.1"
+
+void SendSignal(int sig,int sockConn)
+{
+
+      char *signals;
+      cJSON *root=cJSON_CreateObject();
+      cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(sig));
+      signals=cJSON_Print(root);
+      send(sockConn,signals,SIGSIZE,0);
+}

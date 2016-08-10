@@ -3,16 +3,8 @@
 #include "FileTransport.h"
 #include "Compress.h"
 #include "user.h"
+#include "md5.h"
 
-void SendSignal(int sig,int sockConn)
-{
-
-      char *signals;
-      cJSON *root=cJSON_CreateObject();
-      cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(sig));
-      signals=cJSON_Print(root);
-      send(sockConn,signals,SIGSIZE,0);
-}
 
 long long GetFileSize(const char *filename)
 {
@@ -64,42 +56,39 @@ struct FileList
   {
 
   }
-  void Add(const char *filepath,long long filesize)
+  void Add(const char *filepath,const char* filemd5)
   {
     FilePath[size]=filepath;
-    FileSize[size]=filesize;
+    Filemd5[size]=filemd5;
     size++;
   }
   void Delete(const char *filepath)
   {
     vector<string>::iterator it;
-    vector<long long>::iterator itsize;
+    vector<string>::iterator itmd5;
     it = FilePath.begin();
-    itsize=FileSize.begin();
+    itmd5=Filemd5.begin();
     for(;it!=FilePath.end();)
    {
       if(*it==filepath)
       {
         it=FilePath.erase(it);
-        itsize=FileSize.erase(itsize);
+        itmd5=Filemd5.erase(itmd5);
         size--;
         break;
       }
       else if(strstr((*it).c_str(),filepath)!=NULL)
       {
         it=FilePath.erase(it);
-        itsize=FileSize.erase(itsize);
+        itmd5=Filemd5.erase(itmd5);
         size--;
       }
       else
       {
         it++;
-        itsize++;
+        itmd5++;
       }
     }
-  }
-  void change(const char *filepath,long long filesize)
-  {
   }
   bool operator==(FileList &fl)
   {
@@ -109,7 +98,7 @@ struct FileList
     }
     for(int i=0;i<size;++i)
     {
-      if(FilePath[i]!= fl.FilePath[i] || FileSize[i]!=fl.FileSize[i] )
+      if(FilePath[i]!= fl.FilePath[i] || Filemd5[i]!=fl.Filemd5[i] )
       {
         return false;
       }
@@ -117,7 +106,7 @@ struct FileList
     return true;
   }
   vector<string> FilePath;
-  vector<long long> FileSize;
+  vector<string> Filemd5;
   size_t size;
 };
 
@@ -137,12 +126,12 @@ public:
   void InitServerfl()
   {
     Serverfl.FilePath.resize(10);
-    Serverfl.FileSize.resize(10);
+    Serverfl.Filemd5.resize(10);
   }
   void InitLocalfl()
   {
     Localfl.FilePath.resize(10);
-    Localfl.FileSize.resize(10);
+    Localfl.Filemd5.resize(10);
   }
   void RequestServerfl(int sockConn)
   {
@@ -179,11 +168,11 @@ public:
     len=recv(sockConn,data,FILELISTSIZE,0);
 
 
-    cJSON *filesize=cJSON_Parse(data);
+    cJSON *filemd5=cJSON_Parse(data);
     for(int i=0;i<sizeofarray;++i)
     {
-      int temp=cJSON_GetArrayItem(filesize,i)->valueint;
-      Serverfl.FileSize[i]=temp;
+      char *temp=cJSON_GetArrayItem(filemd5,i)->valuestring;
+      Serverfl.Filemd5[i]=temp;
 
     }
   }
@@ -218,7 +207,7 @@ public:
           printf("download success!next one\n");
 
           Localfl.FilePath[i]=Serverfl.FilePath[i];
-          Localfl.FileSize[i]=Serverfl.FileSize[i]; 
+          Localfl.Filemd5[i]=Serverfl.Filemd5[i]; 
       }
       Localfl.size=Serverfl.size;
 
@@ -233,36 +222,36 @@ public:
     }
     SendSignal(5,sockConn);
   }
-  void FileUpdate(const char *filepath,int filesize)//专门认为是从客户端上传到服务器端
+  void FileUpdate(const char *filepath,const char *filemd5)//专门认为是从客户端上传到服务器端
   {
     //add or delete or change will do this
     struct stat buf;
     lstat(filepath,&buf);
     if(S_ISDIR(buf.st_mode))
     {
-      printf("I am a dir!\n");
       struct dirent *ent=NULL;
       DIR *pDir;
       pDir=opendir(filepath);
       while(NULL!=(ent=readdir(pDir)))
       {
-        printf("name is %s\n",ent->d_name);
         if(strcmp(ent->d_name,".")==0 || strcmp(ent->d_name,"..")==0)
         {
           continue;
         }
         string temp=filepath;
         temp+=ent->d_name;
-        FileUpdate(temp.c_str(),0);
+char *leno=GetMD5(temp.c_str());
+        FileUpdate(temp.c_str(),leno);
+delete leno;
       }
     }
     else
     {
       SendSignal(3,sockConn);
-      Localfl.Add(filepath,filesize);
+      Localfl.Add(filepath,filemd5);
       cJSON *fileinfo=cJSON_CreateObject();
       cJSON_AddItemToObject(fileinfo,"filepath",cJSON_CreateString(filepath));
-      cJSON_AddItemToObject(fileinfo,"filesize",cJSON_CreateNumber(filesize));
+      cJSON_AddItemToObject(fileinfo,"filemd5",cJSON_CreateString(filemd5));
       char *fileinfosend=cJSON_Print(fileinfo);
       send(sockConn,fileinfosend,1024,0);
   
@@ -278,14 +267,14 @@ public:
     }
   }
 
-  void SyncAdd(const char *filepath,long long filesize)
+  void SyncAdd(const char *filepath,const char* filemd5)
   {
     Connect();
     //char test[JSONSIZE]={'\0'};
-    Localfl.Add(filepath,filesize);
+    Localfl.Add(filepath,filemd5);
 
 
-    FileUpdate(filepath,filesize);
+    FileUpdate(filepath,filemd5);
     SendSignal(5,sockConn);
   }
   void SyncDelete(const char *filepath)
@@ -294,7 +283,7 @@ public:
     SendSignal(4,sockConn);
 
     Localfl.Delete(filepath);
-    send(sockConn,filepath,JSONSIZE,0);//!!!!!!!!!!!!!!!!!!
+    send(sockConn,filepath,512,0);//!!!!!!!!!!!!!!!!!!
     SendSignal(5,sockConn);
   }
   void SyncContinue()
@@ -360,24 +349,47 @@ void filesync(int num)
 
 void mainstream()
 {
-  //char username[21]={'\0'};
-  //char userpassword[21]={'\0'};
-  //char *userinfo;
-  //cout<<"please input username"<<endl;
-  //cin>>username;
-  //cout<<"please input userpassword"<<endl;
-  //cin>>userpassword;
-  //while(UserCheck(username,userpassword)!=0)
-  //{
-  //  system("clear");
-  //  printf("username or password is wrong ,please check in\n");
-  //  cout<<"please input username"<<endl;
-  //  cin>>username;
-  //  cout<<"please input userpassword"<<endl;
-  //  cin>>userpassword;
-  //}
-  //system("clear");
-  //printf("login success!\n");
+  char username[21]={'\0'};
+  char userpassword[21]={'\0'};
+  char *userinfo;
+  cout<<"please input username"<<endl;
+  cin>>username;
+
+
+struct termios initialrsettings, newrsettings;
+tcgetattr(fileno(stdin), &initialrsettings);
+newrsettings = initialrsettings;
+newrsettings.c_lflag &= ~ECHO;
+
+
+
+  cout<<"please input userpassword"<<endl;
+
+if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
+    {
+
+        fprintf(stderr,"Could not set attributes\n");//异常处理
+    }
+
+ else {
+        cin>>userpassword;
+
+        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
+    }
+
+
+  
+  while(UserCheck(username,userpassword)!=0)
+  {
+    system("clear");
+    printf("username or password is wrong ,please check in\n");
+    cout<<"please input username"<<endl;
+    cin>>username;
+    cout<<"please input userpassword"<<endl;
+    cin>>userpassword;
+  }
+  system("clear");
+  printf("login success!\n");
   //cli->SyncAdd("./SyncFloderServer/test1.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test2.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test6.txt",0);
@@ -386,7 +398,7 @@ void mainstream()
   //cli->SyncDelete("./SyncFloderServer/test1.txt");
   
 
-  signal(SIGINT,Test);
+  
   //cli->SyncContinue();
 
   char command[100]={'\0'};
@@ -411,16 +423,20 @@ void mainstream()
           temp=strtok(NULL,",");
           while(temp!=NULL)
           {
-            cli->SyncAdd(temp,0);
+	    char *dele=GetMD5(temp);
+            cli->SyncAdd(temp,dele);
             temp=strtok(NULL,",");
+	    delete dele;
           }
 
         }
         else if(strcmp(temp,"delete")==0)
         {
           temp=strtok(NULL,",");
+	  string dsc="rm -rf ";
+	  dsc+=temp;
           cli->SyncDelete(temp);
-          //remove(temp);
+          system(dsc.c_str());
         }
         else if(strcmp(temp,"sync")==0)
         {

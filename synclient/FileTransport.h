@@ -9,16 +9,33 @@ struct datapack
 };
 const char *emname=NULL;
 long long totallength=0;
-void Test(int num)
+int oho;
+
+
+void down(int num)
 {
   FILE *fp;
   fp=fopen("./log","wb+");
-  fprintf(fp,"%s %d",emname,totallength);
+  fprintf(fp,"%s %lld",emname,totallength);
+  SendSignal(5,oho);
   exit(3);
 }
 
+
+void up(int num)
+{
+struct datapack *p=new datapack();
+p->size=0;
+send(oho,p,JSONSIZE,0);
+SendSignal(5,oho);
+
+}
+
+
 int UploadFile(const char * filepath,int sockConn)
 {
+oho=sockConn;
+signal(SIGINT,up);
   printf("tranporting file%s\n",filepath);
 
   int filefd=open(filepath,O_RDONLY);
@@ -41,11 +58,13 @@ int UploadFile(const char * filepath,int sockConn)
     }
     delete Buf;
   }
+signal(SIGINT,SIG_IGN);
   return 0;
 }
 int DownloadFile(const char *filepath,int clientfd,long long offset=0)
 {
-
+oho=clientfd;
+signal(SIGINT,down);
   printf("downloading file %s......\n",filepath);
   totallength=0;
   emname=filepath;
@@ -69,12 +88,12 @@ int DownloadFile(const char *filepath,int clientfd,long long offset=0)
     lseek(filefd,offset,SEEK_SET);
     while(1)
     {
-      int test=recv(clientfd,recvBuf,JSONSIZE,0);
+      int packcount=recv(clientfd,recvBuf,JSONSIZE,0);
 
 
-      while(test>0 && test<JSONSIZE)
+      while(packcount>0 && packcount<JSONSIZE)
       {
-        test+=recv(clientfd,recvBuf+test,JSONSIZE-test,0);
+        packcount+=recv(clientfd,recvBuf+packcount,JSONSIZE-packcount,0);
       }
       struct datapack *Buf=(struct datapack *)recvBuf;
 
