@@ -377,9 +377,10 @@ if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
         tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
     }
 
-
+char *md5passwd=GetPasswdMD5(userpassword);
+char *codepasswd=GetPasswdMD5(md5passwd);
   
-  while(UserCheck(username,userpassword)!=0)
+  while(UserCheck(username,codepasswd)!=0)
   {
     system("clear");
     printf("username or password is wrong ,please check in\n");
@@ -388,6 +389,8 @@ if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
     cout<<"please input userpassword"<<endl;
     cin>>userpassword;
   }
+delete md5passwd;
+delete codepasswd;
   system("clear");
   printf("login success!\n");
   //cli->SyncAdd("./SyncFloderServer/test1.txt",0);

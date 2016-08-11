@@ -1,7 +1,7 @@
 
 int UserCheck(const char *username,const char *userpassword)
 {
-const char * host = "192.168.84.133";
+const char * host = "192.168.1.1";
 const char * user = "root";
 const char * pwd = "shiwanfute";
 const char * dbname = "UserInfo";
