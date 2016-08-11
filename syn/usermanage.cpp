@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <iostream>
 #include <mysql/mysql.h>
+#include "head.h"
+#include "md5.h"
 using namespace std;
 
 
@@ -18,14 +20,11 @@ void menu()
 
 int main()
 {
-  const char * host = "192.168.84.133";
+  const char * host = "192.168.1.1";
   const char * user = "root";
   const char * pwd = "shiwanfute";
   const char * dbname = "UserInfo";
   char sql[100]={'\0'};
-#ifdef _DEBUG_
-  printf("the sql is %s\n",sql);
-#endif 
   unsigned int port = 3306;
   int status;
 
@@ -57,13 +56,23 @@ int main()
         cin>>username;
         cout<<"please input userpassword"<<endl;
         cin>>userpassword;
-        sprintf(sql,"insert into user(name,password) values('%s','%s');",username,userpassword);
+	
+	char *md5passwd,*codepasswd;
+	md5passwd=GetMD5(userpassword);
+printf("1\n");
+	codepasswd=GetMD5(md5passwd);
+printf("2\n");
+
+        sprintf(sql,"insert into user(name,password) values('%s','%s');",username,codepasswd);
+printf("%s\n",sql);
         mysql_set_character_set(mysql, "gbk");
         status = mysql_query(mysql, sql);
         if (status != 0) {
           cout << "query failure!" << endl;
           return -1;
         }
+//	delete md5passwd;
+//	delete codepasswd;
         break;
       case 2:
         cout<<"please input username"<<endl;
