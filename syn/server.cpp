@@ -3,7 +3,7 @@
 #include "code.h"
 #include "FileTransport.h"
 
-vector<int> lock;
+vector<pthread_mutex_t> lock;
 
 
 struct netneed
@@ -274,15 +274,7 @@ void* mainstream(void *net)
       {
         if(strcmp(filepath,Serverfl->FilePath[index].c_str())==0)
         {
-          while(lock[index]==1)
-          {
-            printf("someone is using this file ,I must wait for unlock\n");
-            sleep(3);
-          }
-#ifdef _DEBUG_
-          printf("lock %d!\n",index);
-#endif
-          lock[index]=1;
+	  pthread_mutex_lock(&lock[index]);
           break;
         }
       }
@@ -301,7 +293,7 @@ void* mainstream(void *net)
     
 
       //unlock
-      lock[index]=0;
+	pthread_mutex_unlock(&lock[index]);
     }
     else if(sig == 4)//client delete
     {
@@ -318,16 +310,12 @@ void* mainstream(void *net)
       {
         if(strcmp(filepath,Serverfl->FilePath[index].c_str())==0)
         {
-          while(lock[index]==1)
-          {
-            printf("someone is using this file ,I must wait for unlock\n");
-            sleep(3);
-          }
-          lock[index]=1;
+          pthread_mutex_lock(&lock[index]);
           break;
         }
       }
 
+send(sockConn,"lock get!",20,0);
 
       Serverfl->Delete(filepath);
 #ifdef _DEBUG_
@@ -339,7 +327,10 @@ printf("delete filepath is %s\n",filepath);
       string dsc="rm -rf ";
       dsc+=filepath;
       system(dsc.c_str());
-      lock[index]=0;
+      //unlock
+      pthread_mutex_lock(&lock[index]);
+
+
       printf("delete complete\n");
 
     }
@@ -367,11 +358,16 @@ printf("delete filepath is %s\n",filepath);
   }
 }
 int kirito;
-
 void Exit(int num)
 {
 //save point!!!!!
   CloseSocket(kirito);
+  delete Serverfl;
+  
+  for(int i=0;i<10;++i)
+  {
+    pthread_mutex_destroy(&lock[i]);
+  }
 }
 
 
@@ -380,7 +376,10 @@ int main()
 
   //init lock
   lock.resize(10);
-
+for(int i=0;i<10;++i)
+{
+pthread_mutex_init(&lock[i],NULL);
+}
   //add exit way
   signal(SIGINT,Exit);
 
@@ -423,7 +422,7 @@ int main()
     }
   }
 
-
+  delete[] tid;
   CloseSocket(sockfd);
   return 0;
 }
