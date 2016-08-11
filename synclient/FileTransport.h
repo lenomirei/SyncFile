@@ -100,7 +100,7 @@ signal(SIGINT,down);
       int len=Buf->size;
 
       totallength+=len;
-      if(len==0)
+      if(len<=0)
       {
         break;
       }

@@ -97,10 +97,13 @@ struct FileList
       return false;
     }
     for(int i=0;i<size;++i)
-    {
-      if(FilePath[i]!= fl.FilePath[i] || Filemd5[i]!=fl.Filemd5[i] )
+    {	
+      for(int j=0;j<size;++j)
       {
-        return false;
+        if(FilePath[i]== fl.FilePath[j] && Filemd5[i]!=fl.Filemd5[j] )
+        {
+          return false;
+        }
       }
     }
     return true;
@@ -160,7 +163,7 @@ public:
     for(int i=0;i<sizeofarray;++i)
     {
       char *temp=cJSON_GetArrayItem(filepath,i)->valuestring;
-      Serverfl.FilePath[i]=*(new string(temp));
+      Serverfl.FilePath[i]=temp;
     }
 
 
@@ -184,6 +187,8 @@ public:
     //printf("serverfl size is %d\n",Serverfl.size);
     //printf("localfl size is %d\n",Localfl.size);
 
+printf("Serverfl size is %d\n",Serverfl.size);
+printf("Localfl size is %d\n",Localfl.size);
 
     if(!(Localfl == Serverfl))
     {
@@ -285,7 +290,7 @@ delete leno;
     Localfl.Delete(filepath);
     send(sockConn,filepath,512,0);//!!!!!!!!!!!!!!!!!!
 
-recv(sockConn,NULL,10,0);
+recv(sockConn,NULL,20,0);
  	 string dsc="rm -rf ";
 	  dsc+=filepath;
           
@@ -491,6 +496,7 @@ delete codepasswd;
         }
         break;
       case '3':
+	delete cli;
         printf("Bye!\n");
         return;
         break;
