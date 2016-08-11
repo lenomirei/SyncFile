@@ -284,6 +284,14 @@ delete leno;
 
     Localfl.Delete(filepath);
     send(sockConn,filepath,512,0);//!!!!!!!!!!!!!!!!!!
+
+recv(sockConn,NULL,10,0);
+ 	 string dsc="rm -rf ";
+	  dsc+=filepath;
+          
+	  
+          system(dsc.c_str());
+
     SendSignal(5,sockConn);
   }
   void SyncContinue()
@@ -386,8 +394,23 @@ char *codepasswd=GetPasswdMD5(md5passwd);
     printf("username or password is wrong ,please check in\n");
     cout<<"please input username"<<endl;
     cin>>username;
+tcgetattr(fileno(stdin), &initialrsettings);
+newrsettings = initialrsettings;
+newrsettings.c_lflag &= ~ECHO;
     cout<<"please input userpassword"<<endl;
-    cin>>userpassword;
+    if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
+    {
+
+        fprintf(stderr,"Could not set attributes\n");//异常处理
+    }
+
+ else {
+        cin>>userpassword;
+
+        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
+    }
+md5passwd=GetPasswdMD5(userpassword);
+codepasswd=GetPasswdMD5(md5passwd);
   }
 delete md5passwd;
 delete codepasswd;
@@ -436,10 +459,7 @@ delete codepasswd;
         else if(strcmp(temp,"delete")==0)
         {
           temp=strtok(NULL,",");
-	  string dsc="rm -rf ";
-	  dsc+=temp;
-          cli->SyncDelete(temp);
-          system(dsc.c_str());
+	  cli->SyncDelete(temp);
         }
         else if(strcmp(temp,"sync")==0)
         {
@@ -471,7 +491,7 @@ delete codepasswd;
         }
         break;
       case '3':
-        printf("exit!\n");
+        printf("Bye!\n");
         return;
         break;
       default:
