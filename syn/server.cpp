@@ -362,12 +362,12 @@ void Exit(int num)
 {
 //save point!!!!!
   CloseSocket(kirito);
-  delete Serverfl;
   
   for(int i=0;i<10;++i)
   {
     pthread_mutex_destroy(&lock[i]);
   }
+  delete Serverfl;
 }
 
 
@@ -376,10 +376,10 @@ int main()
 
   //init lock
   lock.resize(10);
-for(int i=0;i<10;++i)
-{
-pthread_mutex_init(&lock[i],NULL);
-}
+  for(int i=0;i<10;++i)
+  {
+    pthread_mutex_init(&lock[i],NULL);
+  }
   //add exit way
   signal(SIGINT,Exit);
 
@@ -422,7 +422,6 @@ pthread_mutex_init(&lock[i],NULL);
     }
   }
 
-  delete[] tid;
-  CloseSocket(sockfd);
+  //CloseSocket(sockfd);
   return 0;
 }

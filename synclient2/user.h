@@ -1,15 +1,12 @@
 
 int UserCheck(const char *username,const char *userpassword)
 {
-const char * host = "192.168.84.133";
+const char * host = "192.168.1.1";
 const char * user = "root";
 const char * pwd = "shiwanfute";
 const char * dbname = "UserInfo";
 char sql[100]={'\0'};
 sprintf(sql,"select password from user where name='%s'",username);
-#ifdef _DEBUG_
-printf("the sql is %s\n",sql);
-#endif 
 unsigned int port = 3306;
 int status;
 

@@ -33,20 +33,18 @@ int UploadFile(const char * filepath,int sockConn,long long offset=0)
   }
   return 0;
 }
-int DownloadFile(const char *filepath,int clientfd)
+int DownloadFile(const char *filepath,int clientfd,long long offset=0)
 {
- 
   printf("downloading file %s......\n",filepath);
-
-  
-
   char recvBuf[JSONSIZE]={'\0'};
   int filefd;
-  long long totallength = 0;
   filefd = open(filepath,O_RDWR|O_CREAT,0777);
   if(filefd<0)
   {
-    char *dir=dirname((char *)filepath);
+char *temp=new char[strlen(filepath)+1];
+strcpy(temp,filepath);
+    char *dir=dirname(temp);
+printf("filepath is %s!!!!!!!!!!\n",filepath);
 #ifdef _DEBUG_
     printf("dir is %s\n",dir);
 #endif
@@ -54,30 +52,35 @@ int DownloadFile(const char *filepath,int clientfd)
     {
       mkdir(dir,0644);
       filefd=open(filepath,O_RDWR | O_CREAT | O_TRUNC,0777);
+        
     }
+ else 
+ {
+ printf("error!\n");
+ }
+delete[] temp;
   }
-  while(1)
-  {
-    int test;
-    test=recv(clientfd,recvBuf,JSONSIZE,0);
-
-
-    while(test>0 && test<JSONSIZE)
+filefd = open(filepath,O_RDWR|O_CREAT,0777);
+    lseek(filefd,offset,SEEK_SET);
+    while(1)
     {
-      test+=recv(clientfd,recvBuf+test,JSONSIZE-test,0);
+      int packcount=recv(clientfd,recvBuf,JSONSIZE,0);
+
+
+      while(packcount>0 && packcount<JSONSIZE)
+      {
+        packcount+=recv(clientfd,recvBuf+packcount,JSONSIZE-packcount,0);
+      }
+      struct datapack *Buf=(struct datapack *)recvBuf;
+
+      int len=Buf->size;
+
+      if(len<=0)
+      {
+        break;
+      }
+      write(filefd ,Buf->data ,len);
+      memset(recvBuf,'\0',JSONSIZE);
     }
-    struct datapack *Buf=(struct datapack *)recvBuf;
-
-    int len=Buf->size;
-
-    //send(clientfd,"acknowledge",512,0);
-
-    if(len==0)
-    {
-      break;
-    }
-    write(filefd ,Buf->data ,len);
-    memset(recvBuf,'\0',JSONSIZE);
-    totallength+=len;
-  }
+  
 }

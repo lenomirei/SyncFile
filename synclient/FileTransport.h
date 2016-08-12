@@ -73,7 +73,9 @@ signal(SIGINT,down);
   filefd = open(filepath,O_RDWR|O_CREAT,0777);
   if(filefd<0)
   {
-    char *dir=dirname((char *)filepath);
+char *temp=new char[strlen(filepath)+1];
+strcpy(temp,filepath);
+    char *dir=dirname(temp);
 #ifdef _DEBUG_
     printf("dir is %s\n",dir);
 #endif
@@ -82,9 +84,13 @@ signal(SIGINT,down);
       mkdir(dir,0644);
       filefd=open(filepath,O_RDWR | O_CREAT | O_TRUNC,0777);
     }
+else
+{
+printf("error\n");
+}
+delete[] temp;
   }
-  else
-  {
+filefd = open(filepath,O_RDWR|O_CREAT,0777);
     lseek(filefd,offset,SEEK_SET);
     while(1)
     {
@@ -107,5 +113,5 @@ signal(SIGINT,down);
       write(filefd ,Buf->data ,len);
       memset(recvBuf,'\0',JSONSIZE);
     }
-  }
+  
 }

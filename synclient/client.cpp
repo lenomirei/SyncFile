@@ -362,65 +362,65 @@ void filesync(int num)
 
 void mainstream()
 {
-  char username[21]={'\0'};
-  char userpassword[21]={'\0'};
-  char *userinfo;
-  cout<<"please input username"<<endl;
-  cin>>username;
-
-
-struct termios initialrsettings, newrsettings;
-tcgetattr(fileno(stdin), &initialrsettings);
-newrsettings = initialrsettings;
-newrsettings.c_lflag &= ~ECHO;
-
-
-
-  cout<<"please input userpassword"<<endl;
-
-if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
-    {
-
-        fprintf(stderr,"Could not set attributes\n");//异常处理
-    }
-
- else {
-        cin>>userpassword;
-
-        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
-    }
-
-char *md5passwd=GetPasswdMD5(userpassword);
-char *codepasswd=GetPasswdMD5(md5passwd);
-  
-  while(UserCheck(username,codepasswd)!=0)
-  {
-    system("clear");
-    printf("username or password is wrong ,please check in\n");
-    cout<<"please input username"<<endl;
-    cin>>username;
-tcgetattr(fileno(stdin), &initialrsettings);
-newrsettings = initialrsettings;
-newrsettings.c_lflag &= ~ECHO;
-    cout<<"please input userpassword"<<endl;
-    if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
-    {
-
-        fprintf(stderr,"Could not set attributes\n");//异常处理
-    }
-
- else {
-        cin>>userpassword;
-
-        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
-    }
-md5passwd=GetPasswdMD5(userpassword);
-codepasswd=GetPasswdMD5(md5passwd);
-  }
-delete md5passwd;
-delete codepasswd;
-  system("clear");
-  printf("login success!\n");
+//  char username[21]={'\0'};
+//  char userpassword[21]={'\0'};
+//  char *userinfo;
+//  cout<<"please input username"<<endl;
+//  cin>>username;
+//
+//
+//struct termios initialrsettings, newrsettings;
+//tcgetattr(fileno(stdin), &initialrsettings);
+//newrsettings = initialrsettings;
+//newrsettings.c_lflag &= ~ECHO;
+//
+//
+//
+//  cout<<"please input userpassword"<<endl;
+//
+//if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
+//    {
+//
+//        fprintf(stderr,"Could not set attributes\n");//异常处理
+//    }
+//
+// else {
+//        cin>>userpassword;
+//
+//        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
+//    }
+//
+//char *md5passwd=GetPasswdMD5(userpassword);
+//char *codepasswd=GetPasswdMD5(md5passwd);
+//  
+//  while(UserCheck(username,codepasswd)!=0)
+//  {
+//    system("clear");
+//    printf("username or password is wrong ,please check in\n");
+//    cout<<"please input username"<<endl;
+//    cin>>username;
+//tcgetattr(fileno(stdin), &initialrsettings);
+//newrsettings = initialrsettings;
+//newrsettings.c_lflag &= ~ECHO;
+//    cout<<"please input userpassword"<<endl;
+//    if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
+//    {
+//
+//        fprintf(stderr,"Could not set attributes\n");//异常处理
+//    }
+//
+// else {
+//        cin>>userpassword;
+//
+//        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
+//    }
+//md5passwd=GetPasswdMD5(userpassword);
+//codepasswd=GetPasswdMD5(md5passwd);
+//  }
+//delete md5passwd;
+//delete codepasswd;
+//  system("clear");
+//  printf("login success!\n");
   //cli->SyncAdd("./SyncFloderServer/test1.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test2.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test6.txt",0);

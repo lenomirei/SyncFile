@@ -9,19 +9,23 @@
 #include <zlib.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <signal.h>
+#include <dirent.h>
+#include <libgen.h>
+#include <time.h>
+#include <termios.h>
+
+#include <openssl/md5.h> 
+
 #include <iostream>
 #include <string>
 #include <vector>
-
 
 #include <mysql/mysql.h>
 #include <sys/types.h> 
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/signal.h>
+#include <sys/socket.h> 
 #include <netinet/in.h> 
 #include <arpa/inet.h> //inet_ntoa()函数的头文件
 extern "C"
@@ -36,8 +40,8 @@ extern "C"
 
 using namespace std;
 
-#define BUFFSIZE 512
-#define JSONSIZE 2048
+#define BUFFSIZE 8188
+#define JSONSIZE 8192
 #define DEFAULTPORT 8001
 #define FILELISTSIZE 1024
 #define SIGSIZE 17 
@@ -45,3 +49,13 @@ using namespace std;
 #define SIZE 100
 #define UPDATERATE 3
 #define DEFAULTIP "127.0.0.1"
+
+void SendSignal(int sig,int sockConn)
+{
+
+      char *signals;
+      cJSON *root=cJSON_CreateObject();
+      cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(sig));
+      signals=cJSON_Print(root);
+      send(sockConn,signals,SIGSIZE,0);
+}

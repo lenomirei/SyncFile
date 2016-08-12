@@ -3,8 +3,18 @@
 #include "FileTransport.h"
 #include "Compress.h"
 #include "user.h"
+#include "md5.h"
 
 
+long long GetFileSize(const char *filename)
+{
+  struct stat buf;
+  if(stat(filename,&buf)<0)
+  {
+    return 0;
+  }
+  return (long long)buf.st_size;
+}
 
 int ConnectToServer(const char *address,int port,struct sockaddr_in& server_addr)
 {
@@ -34,15 +44,6 @@ void ShutDownConnect(int sockConn)
 
 
 
-void SendSignal(int sig,int sockConn)
-{
-
-      char *signals;
-      cJSON *root=cJSON_CreateObject();
-      cJSON_AddItemToObject(root,"signal",cJSON_CreateNumber(sig));
-      signals=cJSON_Print(root);
-      send(sockConn,signals,SIGSIZE,0);
-}
 
 
 
@@ -55,36 +56,39 @@ struct FileList
   {
 
   }
-  void Add(const char *filepath,long long filesize)
+  void Add(const char *filepath,const char* filemd5)
   {
     FilePath[size]=filepath;
-    FileSize[size]=filesize;
+    Filemd5[size]=filemd5;
     size++;
   }
   void Delete(const char *filepath)
   {
     vector<string>::iterator it;
-    vector<long long>::iterator itsize;
+    vector<string>::iterator itmd5;
     it = FilePath.begin();
-    itsize=FileSize.begin();
+    itmd5=Filemd5.begin();
     for(;it!=FilePath.end();)
-    {
+   {
       if(*it==filepath)
       {
         it=FilePath.erase(it);
-        itsize=FileSize.erase(itsize);
+        itmd5=Filemd5.erase(itmd5);
+        size--;
         break;
+      }
+      else if(strstr((*it).c_str(),filepath)!=NULL)
+      {
+        it=FilePath.erase(it);
+        itmd5=Filemd5.erase(itmd5);
+        size--;
       }
       else
       {
         it++;
-        itsize++;
+        itmd5++;
       }
     }
-    size--;
-  }
-  void change(const char *filepath,long long filesize)
-  {
   }
   bool operator==(FileList &fl)
   {
@@ -93,16 +97,19 @@ struct FileList
       return false;
     }
     for(int i=0;i<size;++i)
-    {
-      if(FilePath[i]!= fl.FilePath[i] || FileSize[i]!=fl.FileSize[i] )
+    {	
+      for(int j=0;j<size;++j)
       {
-        return false;
+        if(FilePath[i]== fl.FilePath[j] && Filemd5[i]!=fl.Filemd5[j] )
+        {
+          return false;
+        }
       }
     }
     return true;
   }
   vector<string> FilePath;
-  vector<long long> FileSize;
+  vector<string> Filemd5;
   size_t size;
 };
 
@@ -122,14 +129,12 @@ public:
   void InitServerfl()
   {
     Serverfl.FilePath.resize(10);
-    Serverfl.FileSize.resize(10);
+    Serverfl.Filemd5.resize(10);
   }
   void InitLocalfl()
   {
-    mkdir("S",0777);
     Localfl.FilePath.resize(10);
-    Localfl.FileSize.resize(10);
-
+    Localfl.Filemd5.resize(10);
   }
   void RequestServerfl(int sockConn)
   {
@@ -158,7 +163,7 @@ public:
     for(int i=0;i<sizeofarray;++i)
     {
       char *temp=cJSON_GetArrayItem(filepath,i)->valuestring;
-      Serverfl.FilePath[i]=*(new string(temp));
+      Serverfl.FilePath[i]=temp;
     }
 
 
@@ -166,11 +171,11 @@ public:
     len=recv(sockConn,data,FILELISTSIZE,0);
 
 
-    cJSON *filesize=cJSON_Parse(data);
+    cJSON *filemd5=cJSON_Parse(data);
     for(int i=0;i<sizeofarray;++i)
     {
-      int temp=cJSON_GetArrayItem(filesize,i)->valueint;
-      Serverfl.FileSize[i]=temp;
+      char *temp=cJSON_GetArrayItem(filemd5,i)->valuestring;
+      Serverfl.Filemd5[i]=temp;
 
     }
   }
@@ -182,6 +187,8 @@ public:
     //printf("serverfl size is %d\n",Serverfl.size);
     //printf("localfl size is %d\n",Localfl.size);
 
+printf("Serverfl size is %d\n",Serverfl.size);
+printf("Localfl size is %d\n",Localfl.size);
 
     if(!(Localfl == Serverfl))
     {
@@ -196,22 +203,16 @@ public:
       {
 
 
-          if(strstr(Serverfl.FilePath[i].c_str(),".txt")==NULL)
-          {
-            DownloadFile("encodedfile",sockConn);
-            BinaryFileDecode(Serverfl.FilePath[i].c_str());
-          }
-          else
-          {
-            DownloadFile("compressedfile.gz",sockConn);
-            UnCompressFile(Serverfl.FilePath[i].c_str());
-          }
+        
+            DownloadFile(Serverfl.FilePath[i].c_str(),sockConn);
+        
+       
 
 
           printf("download success!next one\n");
 
           Localfl.FilePath[i]=Serverfl.FilePath[i];
-          Localfl.FileSize[i]=Serverfl.FileSize[i]; 
+          Localfl.Filemd5[i]=Serverfl.Filemd5[i]; 
       }
       Localfl.size=Serverfl.size;
 
@@ -226,39 +227,106 @@ public:
     }
     SendSignal(5,sockConn);
   }
-  void FileUpdate(const char *filepath,int filesize)//专门认为是从客户端上传到服务器端
+  void FileUpdate(const char *filepath,const char *filemd5)//专门认为是从客户端上传到服务器端
   {
     //add or delete or change will do this
-    
-    SendSignal(3,sockConn);
-    Localfl.Add(filepath,filesize);
-  
-
-    cJSON *fileinfo=cJSON_CreateObject();
-    cJSON_AddItemToObject(fileinfo,"filepath",cJSON_CreateString(filepath));
-    cJSON_AddItemToObject(fileinfo,"filesize",cJSON_CreateNumber(filesize));
-    char *fileinfosend=cJSON_Print(fileinfo);
-    send(sockConn,fileinfosend,BUFFSIZE,0);
-
-
-    recv(sockConn,NULL,JSONSIZE,0);
-
-   
-    if(strstr(filepath,".txt")==NULL)
+    struct stat buf;
+    lstat(filepath,&buf);
+    if(S_ISDIR(buf.st_mode))
     {
-      BinaryFileEncode(filepath,sockConn);
-      UploadFile("encodedfile",sockConn);
+      struct dirent *ent=NULL;
+      DIR *pDir;
+      pDir=opendir(filepath);
+      while(NULL!=(ent=readdir(pDir)))
+      {
+        if(strcmp(ent->d_name,".")==0 || strcmp(ent->d_name,"..")==0)
+        {
+          continue;
+        }
+        string temp=filepath;
+        temp+=ent->d_name;
+char *leno=GetMD5(temp.c_str());
+        FileUpdate(temp.c_str(),leno);
+delete leno;
+      }
     }
     else
     {
-      CompressFile(filepath);
-      UploadFile("compressedfile.gz",sockConn);
+      SendSignal(3,sockConn);
+      Localfl.Add(filepath,filemd5);
+      cJSON *fileinfo=cJSON_CreateObject();
+      cJSON_AddItemToObject(fileinfo,"filepath",cJSON_CreateString(filepath));
+      cJSON_AddItemToObject(fileinfo,"filemd5",cJSON_CreateString(filemd5));
+      char *fileinfosend=cJSON_Print(fileinfo);
+      send(sockConn,fileinfosend,1024,0);
+  
+      recv(sockConn,NULL,1024,0);
+#ifdef _DEBUG_
+      clock_t start=clock();
+#endif
+        int ret=UploadFile(filepath,sockConn);//!!!!!!!!!
+#ifdef _DEBUG_
+        clock_t end=clock();
+        cout<<"transport time count is"<<((double)(end-start))/CLOCKS_PER_SEC<<endl;
+#endif
     }
   }
 
-  void Connect()
+  void SyncAdd(const char *filepath,const char* filemd5)
   {
+    Connect();
+    //char test[JSONSIZE]={'\0'};
+    Localfl.Add(filepath,filemd5);
 
+
+    FileUpdate(filepath,filemd5);
+    SendSignal(5,sockConn);
+  }
+  void SyncDelete(const char *filepath)
+  {
+    Connect();
+    SendSignal(4,sockConn);
+
+    Localfl.Delete(filepath);
+    send(sockConn,filepath,512,0);//!!!!!!!!!!!!!!!!!!
+
+recv(sockConn,NULL,20,0);
+ 	 string dsc="rm -rf ";
+	  dsc+=filepath;
+          
+	  
+          system(dsc.c_str());
+
+    SendSignal(5,sockConn);
+  }
+  void SyncContinue()
+  {
+    if(GetFileSize("./log")>0)
+    {
+      FILE *fp=NULL;
+      long long offset=0;
+      char filename[20]={'\0'};
+      fp=fopen("log","rb");
+      if(NULL==fp)
+      {
+        return ;
+      }
+      fscanf(fp,"%s %lld",filename,&offset);
+      Connect();
+      SendSignal(6,sockConn);
+      cJSON *fileinfo=cJSON_CreateObject();
+      cJSON_AddItemToObject(fileinfo,"filename",cJSON_CreateString(filename));
+      cJSON_AddItemToObject(fileinfo,"offset",cJSON_CreateNumber(offset));
+      char *fileinfosend=cJSON_Print(fileinfo);
+      send(sockConn,fileinfosend,1024,0);
+      DownloadFile(filename,sockConn,offset);
+      remove("./log");
+      SendSignal(5,sockConn);
+    }
+  }
+  int Connect()
+  {
+  
     struct sockaddr_in server_addr;
     int sockConn=ConnectToServer(DEFAULTIP,DEFAULTPORT,server_addr);
     if(sockConn<0)
@@ -268,28 +336,7 @@ public:
       exit(-1);
     }
     SetsockConn(sockConn);
-  }
-  void SyncAdd(const char *filepath,long long filesize)
-  {
-    Connect();
-    //char test[JSONSIZE]={'\0'};
-    Localfl.Add(filepath,filesize);
-
-
-    FileUpdate(filepath,filesize);
-    SendSignal(5,sockConn);
-  }
-  void SyncDelete(const char *filepath)
-  {
-    Connect();
-    SendSignal(4,sockConn);
-
-    Localfl.Delete(filepath);
-    send(sockConn,filepath,JSONSIZE,0);
-    SendSignal(5,sockConn);
-  }
-  void SyncChange();
-
+}
 private:
   int sockConn;
   FileList Localfl;
@@ -297,10 +344,11 @@ private:
 };
 
 
-
-
-
 Sync *cli=new Sync();
+
+
+
+
 
 void filesync(int num)
 {
@@ -315,30 +363,75 @@ void filesync(int num)
 
 void mainstream()
 {
-  char username[21]={'\0'};
-  char userpassword[21]={'\0'};
-  char *userinfo;
-  cout<<"please input username"<<endl;
-  cin>>username;
-  cout<<"please input userpassword"<<endl;
-  cin>>userpassword;
-  while(UserCheck(username,userpassword)!=0)
-  {
-    system("clear");
-    printf("username or password is wrong ,please check in\n");
-    cout<<"please input username"<<endl;
-    cin>>username;
-    cout<<"please input userpassword"<<endl;
-    cin>>userpassword;
-  }
-  system("clear");
-  printf("login success!\n");
+//  char username[21]={'\0'};
+//  char userpassword[21]={'\0'};
+//  char *userinfo;
+//  cout<<"please input username"<<endl;
+//  cin>>username;
+//
+//
+//struct termios initialrsettings, newrsettings;
+//tcgetattr(fileno(stdin), &initialrsettings);
+//newrsettings = initialrsettings;
+//newrsettings.c_lflag &= ~ECHO;
+//
+//
+//
+//  cout<<"please input userpassword"<<endl;
+//
+//if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
+//    {
+//
+//        fprintf(stderr,"Could not set attributes\n");//异常处理
+//    }
+//
+// else {
+//        cin>>userpassword;
+//
+//        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
+//    }
+//
+//char *md5passwd=GetPasswdMD5(userpassword);
+//char *codepasswd=GetPasswdMD5(md5passwd);
+//  
+//  while(UserCheck(username,codepasswd)!=0)
+//  {
+//    system("clear");
+//    printf("username or password is wrong ,please check in\n");
+//    cout<<"please input username"<<endl;
+//    cin>>username;
+//tcgetattr(fileno(stdin), &initialrsettings);
+//newrsettings = initialrsettings;
+//newrsettings.c_lflag &= ~ECHO;
+//    cout<<"please input userpassword"<<endl;
+//    if(tcsetattr(fileno(stdin), TCSAFLUSH, &newrsettings) != 0)
+//    {
+//
+//        fprintf(stderr,"Could not set attributes\n");//异常处理
+//    }
+//
+// else {
+//        cin>>userpassword;
+//
+//        tcsetattr(fileno(stdin), TCSANOW, &initialrsettings);
+//    }
+//md5passwd=GetPasswdMD5(userpassword);
+//codepasswd=GetPasswdMD5(md5passwd);
+//  }
+//delete md5passwd;
+//delete codepasswd;
+//  system("clear");
+//  printf("login success!\n");
   //cli->SyncAdd("./SyncFloderServer/test1.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test2.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test6.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test7.txt",0);
   //cli->SyncAdd("./SyncFloderServer/test.pdf",0);
   //cli->SyncDelete("./SyncFloderServer/test1.txt");
+  
+
+  
+  cli->SyncContinue();
 
   char command[100]={'\0'};
   char selection='1';
@@ -360,13 +453,19 @@ void mainstream()
         if(strcmp(temp,"add")==0)
         {
           temp=strtok(NULL,",");
-          cli->SyncAdd(temp,0);
+          while(temp!=NULL)
+          {
+	    char *dele=GetMD5(temp);
+            cli->SyncAdd(temp,dele);
+            temp=strtok(NULL,",");
+	    delete dele;
+          }
 
         }
         else if(strcmp(temp,"delete")==0)
         {
           temp=strtok(NULL,",");
-          cli->SyncDelete(temp);
+	  cli->SyncDelete(temp);
         }
         else if(strcmp(temp,"sync")==0)
         {
@@ -398,7 +497,8 @@ void mainstream()
         }
         break;
       case '3':
-        printf("exit!\n");
+	delete cli;
+        printf("Bye!\n");
         return;
         break;
       default:

@@ -1,7 +1,42 @@
+struct datapack
+{
+  int size;
+  char data[BUFFSIZE];
+  datapack()
+  {
+    memset(data,'\0',BUFFSIZE);
+  }
+};
+const char *emname=NULL;
+long long totallength=0;
+int oho;
+
+
+void down(int num)
+{
+  FILE *fp;
+  fp=fopen("./log","wb+");
+  fprintf(fp,"%s %lld",emname,totallength);
+  SendSignal(5,oho);
+  exit(3);
+}
+
+
+void up(int num)
+{
+struct datapack *p=new datapack();
+p->size=0;
+send(oho,p,JSONSIZE,0);
+SendSignal(5,oho);
+
+}
 
 
 int UploadFile(const char * filepath,int sockConn)
 {
+oho=sockConn;
+signal(SIGINT,up);
+  printf("tranporting file%s\n",filepath);
 
   int filefd=open(filepath,O_RDONLY);
   if(filefd<0)
@@ -9,72 +44,74 @@ int UploadFile(const char * filepath,int sockConn)
     printf("file open error!\n");
     return -1;
   }
-  char sendBuf[JSONSIZE]={'\0'};
-  char jsonbuf[JSONSIZE]={'\0'};
+
   while(1)
   {
-    char *sendjson;
-    cJSON *transgram=cJSON_CreateObject();
+    struct datapack *Buf=new datapack();
+    int len = read(filefd,Buf->data,BUFFSIZE);
+    Buf->size=len;
+    int test=send(sockConn,Buf,JSONSIZE,0);
 
-    int len = read(filefd,sendBuf,BUFFSIZE);
-
-    cJSON_AddItemToObject(transgram,"length",cJSON_CreateNumber(len));
-    cJSON_AddItemToObject(transgram,"datapack",cJSON_CreateString(sendBuf));
-    sendjson=cJSON_Print(transgram);
-
-    //printf("the length of sendjson is %d\n",strlen(sendjson)+1);
-    //printf("WTF the json is %s \n",sendjson);
-    strcpy(jsonbuf,sendjson);
-
-
-    int temp=send(sockConn,jsonbuf,JSONSIZE,0);
-
-
-    recv(sockConn,sendBuf,JSONSIZE,0);
-
-
-    memset(sendBuf,'\0',JSONSIZE);
     if(len < 1)
     {
       break;
     }
+    delete Buf;
   }
+signal(SIGINT,SIG_IGN);
   return 0;
 }
-int DownloadFile(const char *filepath,int clientfd)
+int DownloadFile(const char *filepath,int clientfd,long long offset=0)
 {
- 
+oho=clientfd;
+signal(SIGINT,down);
   printf("downloading file %s......\n",filepath);
-
-  
-
+  totallength=0;
+  emname=filepath;
   char recvBuf[JSONSIZE]={'\0'};
   int filefd;
-  long long totallength = 0;
   filefd = open(filepath,O_RDWR|O_CREAT,0777);
-  while(1)
+  if(filefd<0)
   {
-
-    cJSON *transgram;
-
-    int test=recv(clientfd,recvBuf,JSONSIZE,0);
-
-
-    send(clientfd,"acknowledge",JSONSIZE,0);
-
-
-
-    transgram=cJSON_Parse(recvBuf);
-    int len=cJSON_GetObjectItem(transgram,"length")->valueint;
-
-    if(len==0)
+char *temp=new char[strlen(filepath)+1];
+strcpy(temp,filepath);
+    char *dir=dirname(temp);
+#ifdef _DEBUG_
+    printf("dir is %s\n",dir);
+#endif
+    if(opendir(dir)==NULL)
     {
-      break;
+      mkdir(dir,0644);
+      filefd=open(filepath,O_RDWR | O_CREAT | O_TRUNC,0777);
     }
-    write(filefd ,cJSON_GetObjectItem(transgram,"datapack")->valuestring ,len);
-    memset(recvBuf,'\0',JSONSIZE);
-    totallength+=len;
+else
+{
+printf("error\n");
+}
+delete[] temp;
   }
-  int num=lseek(filefd,0,SEEK_END);
- ftruncate(filefd,totallength);
+filefd = open(filepath,O_RDWR|O_CREAT,0777);
+    lseek(filefd,offset,SEEK_SET);
+    while(1)
+    {
+      int packcount=recv(clientfd,recvBuf,JSONSIZE,0);
+
+
+      while(packcount>0 && packcount<JSONSIZE)
+      {
+        packcount+=recv(clientfd,recvBuf+packcount,JSONSIZE-packcount,0);
+      }
+      struct datapack *Buf=(struct datapack *)recvBuf;
+
+      int len=Buf->size;
+
+      totallength+=len;
+      if(len<=0)
+      {
+        break;
+      }
+      write(filefd ,Buf->data ,len);
+      memset(recvBuf,'\0',JSONSIZE);
+    }
+  
 }
